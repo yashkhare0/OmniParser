@@ -1,8 +1,7 @@
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
-
 from supervision.detection.core import Detections
 from supervision.draw.color import Color, ColorPalette
 
@@ -33,7 +32,7 @@ class BoxAnnotator:
         text_thickness: int = 2,  # 1, # 2 for demo
         text_padding: int = 10,
         avoid_overlap: bool = True,
-    ):
+    ) -> None:
         self.color: Union[Color, ColorPalette] = color
         self.thickness: int = thickness
         self.text_color: Color = text_color
@@ -208,11 +207,11 @@ def IoU(box1, box2, return_max=True):
 
 
 def get_optimal_label_pos(
-    text_padding, text_width, text_height, x1, y1, x2, y2, detections, image_size
+    text_padding, text_width, text_height, x1, y1, x2, y2, detections, image_size,
 ):
-    """check overlap of text and background detection box, and get_optimal_label_pos,
+    """Check overlap of text and background detection box, and get_optimal_label_pos,
     pos: str, position of the text, must be one of 'top left', 'top right', 'outer left', 'outer right' TODO: if all are overlapping, return the last one, i.e. outer right
-    Threshold: default to 0.3
+    Threshold: default to 0.3.
     """
 
     def get_is_overlap(

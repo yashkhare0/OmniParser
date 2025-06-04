@@ -1,29 +1,26 @@
-import json
-from collections.abc import Callable
-from typing import cast, Callable
-import uuid
-from PIL import Image, ImageDraw
 import base64
-from io import BytesIO
 import copy
-from pathlib import Path
-from datetime import datetime
+import json
+import os
+import re
+import time
+import uuid
+from collections.abc import Callable
+from io import BytesIO
+from typing import Callable, Optional
+
+from agent.llm_utils.groqclient import run_groq_interleaved
+from agent.llm_utils.oaiclient import run_oai_interleaved
+from agent.llm_utils.utils import is_image_path
 from anthropic import APIResponse
-from anthropic.types import ToolResultBlockParam
 from anthropic.types.beta import (
     BetaMessage,
+    BetaMessageParam,
     BetaTextBlock,
     BetaToolUseBlock,
-    BetaMessageParam,
     BetaUsage,
 )
-
-from agent.llm_utils.oaiclient import run_oai_interleaved
-from agent.llm_utils.groqclient import run_groq_interleaved
-from agent.llm_utils.utils import is_image_path
-import time
-import re
-import os
+from PIL import Image, ImageDraw
 
 OUTPUT_DIR = "./tmp/outputs"
 ORCHESTRATOR_LEDGER_PROMPT = """
@@ -36,7 +33,7 @@ To make progress on the request, please answer the following questions, includin
     - Is the request fully satisfied? (True if complete, or False if the original request has yet to be SUCCESSFULLY and FULLY addressed)
     - Are we in a loop where we are repeating the same requests and / or getting the same responses as before? Loops can span multiple turns, and can include repeated actions like scrolling up or down more than a handful of times.
     - Are we making forward progress? (True if just starting, or recent messages are adding value. False if recent messages show evidence of being stuck in a loop or if there is evidence of significant barriers to success such as the inability to read from a required file)
-    - What instruction or question would you give in order to complete the task? 
+    - What instruction or question would you give in order to complete the task?
 
 Please output an answer in pure JSON format according to the following schema. The JSON object must be parsable as-is. DO NOT OUTPUT ANYTHING OTHER THAN JSON, AND DO NOT DEVIATE FROM THIS SCHEMA:
 
@@ -82,25 +79,22 @@ class VLMOrchestratedAgent:
         max_tokens: int = 4096,
         only_n_most_recent_images: int | None = None,
         print_usage: bool = True,
-        save_folder: str = None,
-    ):
+        save_folder: Optional[str] = None,
+    ) -> None:
         if (
-            model == "omniparser + gpt-4o"
-            or model == "omniparser + gpt-4o-orchestrated"
+            model in ("omniparser + gpt-4o", "omniparser + gpt-4o-orchestrated")
         ):
             self.model = "gpt-4o-2024-11-20"
-        elif model == "omniparser + R1" or model == "omniparser + R1-orchestrated":
+        elif model in ("omniparser + R1", "omniparser + R1-orchestrated"):
             self.model = "deepseek-r1-distill-llama-70b"
         elif (
-            model == "omniparser + qwen2.5vl"
-            or model == "omniparser + qwen2.5vl-orchestrated"
+            model in ("omniparser + qwen2.5vl", "omniparser + qwen2.5vl-orchestrated")
         ):
             self.model = "qwen2.5-vl-72b-instruct"
-        elif model == "omniparser + o1" or model == "omniparser + o1-orchestrated":
+        elif model in ("omniparser + o1", "omniparser + o1-orchestrated"):
             self.model = "o1"
         elif (
-            model == "omniparser + o3-mini"
-            or model == "omniparser + o3-mini-orchestrated"
+            model in ("omniparser + o3-mini", "omniparser + o3-mini-orchestrated")
         ):
             self.model = "o3-mini"
         else:
@@ -149,7 +143,7 @@ class VLMOrchestratedAgent:
         with open(f"{self.save_folder}/screenshot_{self.step_count}.png", "wb") as f:
             f.write(base64.b64decode(parsed_screen["original_screenshot_base64"]))
         with open(
-            f"{self.save_folder}/som_screenshot_{self.step_count}.png", "wb"
+            f"{self.save_folder}/som_screenshot_{self.step_count}.png", "wb",
         ) as f:
             f.write(base64.b64decode(parsed_screen["som_image_base64"]))
 
@@ -165,17 +159,17 @@ class VLMOrchestratedAgent:
         planner_messages = messages
         _remove_som_images(planner_messages)
         _maybe_filter_to_n_most_recent_images(
-            planner_messages, self.only_n_most_recent_images
+            planner_messages, self.only_n_most_recent_images,
         )
 
         if isinstance(planner_messages[-1], dict):
             if not isinstance(planner_messages[-1]["content"], list):
                 planner_messages[-1]["content"] = [planner_messages[-1]["content"]]
             planner_messages[-1]["content"].append(
-                f"{OUTPUT_DIR}/screenshot_{screenshot_uuid}.png"
+                f"{OUTPUT_DIR}/screenshot_{screenshot_uuid}.png",
             )
             planner_messages[-1]["content"].append(
-                f"{OUTPUT_DIR}/screenshot_som_{screenshot_uuid}.png"
+                f"{OUTPUT_DIR}/screenshot_som_{screenshot_uuid}.png",
             )
 
         start = time.time()
@@ -189,7 +183,6 @@ class VLMOrchestratedAgent:
                 provider_base_url="https://api.openai.com/v1",
                 temperature=0,
             )
-            print(f"oai token usage: {token_usage}")
             self.total_token_usage += token_usage
             if "gpt" in self.model:
                 self.total_cost += (
@@ -211,7 +204,6 @@ class VLMOrchestratedAgent:
                 api_key=self.api_key,
                 max_tokens=self.max_tokens,
             )
-            print(f"groq token usage: {token_usage}")
             self.total_token_usage += token_usage
             self.total_cost += token_usage * 0.99 / 1000000
         elif "qwen" in self.model:
@@ -224,7 +216,6 @@ class VLMOrchestratedAgent:
                 provider_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
                 temperature=0,
             )
-            print(f"qwen token usage: {token_usage}")
             self.total_token_usage += token_usage
             self.total_cost += (
                 token_usage * 2.2 / 1000000
@@ -238,12 +229,9 @@ class VLMOrchestratedAgent:
             f"<i>Step {self.step_count} | OmniParser: {latency_omniparser:.2f}s | LLM: {latency_vlm:.2f}s</i>",
         )
 
-        print(f"{vlm_response}")
 
         if self.print_usage:
-            print(
-                f"Total token so far: {self.total_token_usage}. Total cost so far: $USD{self.total_cost:.5f}"
-            )
+            pass
 
         vlm_response_json = extract_data(vlm_response, "json")
         vlm_response_json = json.loads(vlm_response_json)
@@ -265,7 +253,7 @@ class VLMOrchestratedAgent:
                 x, y = vlm_response_json["box_centroid_coordinate"]
                 radius = 10
                 draw.ellipse(
-                    (x - radius, y - radius, x + radius, y + radius), fill="red"
+                    (x - radius, y - radius, x + radius, y + radius), fill="red",
                 )
                 draw.ellipse(
                     (x - radius * 3, y - radius * 3, x + radius * 3, y + radius * 3),
@@ -277,10 +265,9 @@ class VLMOrchestratedAgent:
                 buffered = BytesIO()
                 img_to_show.save(buffered, format="PNG")
                 img_to_show_base64 = base64.b64encode(buffered.getvalue()).decode(
-                    "utf-8"
+                    "utf-8",
                 )
             except:
-                print(f"Error parsing: {vlm_response_json}")
                 pass
         self.output_callback(
             f'<img src="data:image/png;base64,{img_to_show_base64}">',
@@ -318,7 +305,7 @@ class VLMOrchestratedAgent:
             response_content.append(move_cursor_block)
 
         if vlm_response_json["Next Action"] == "None":
-            print("Task paused/completed.")
+            pass
         elif vlm_response_json["Next Action"] == "type":
             sim_content_block = BetaToolUseBlock(
                 id=f"toolu_{uuid.uuid4()}",
@@ -364,7 +351,7 @@ class VLMOrchestratedAgent:
 
         return response_message, vlm_response_json
 
-    def _api_response_callback(self, response: APIResponse):
+    def _api_response_callback(self, response: APIResponse) -> None:
         self.api_response_callback(response)
 
     def _get_system_prompt(self, screen_info: str = ""):
@@ -385,7 +372,7 @@ Your available "Next Action" only include:
 - double_click: move mouse to box id and double clicks.
 - hover: move mouse to box id.
 - scroll_up: scrolls the screen up to view previous content.
-- scroll_down: scrolls the screen down, when the desired button is not visible, or you need to see more content. 
+- scroll_down: scrolls the screen down, when the desired button is not visible, or you need to see more content.
 - wait: waits for 1 second for the device to load or respond.
 
 Based on the visual information from the screenshot image and the detected bounding boxes, please determine the next action, the Box ID you should operate on (if action is one of 'type', 'hover', 'scroll_up', 'scroll_down', 'wait', there should be no Box ID field), and the value (if the action is 'type') in order to complete the task.
@@ -394,7 +381,7 @@ Output format:
 ```json
 {{
     "Reasoning": str, # describe what is in the current screen, taking into account the history, then describe your step-by-step thoughts on how to achieve the task, choose one action from available actions at a time.
-    "Next Action": "action_type, action description" | "None" # one action at a time, describe it in short and precisely. 
+    "Next Action": "action_type, action description" | "None" # one action at a time, describe it in short and precisely.
     "Box ID": n,
     "value": "xxx" # only provide value field if the action is type, else don't include value key
 }}
@@ -402,7 +389,7 @@ Output format:
 
 One Example:
 ```json
-{{  
+{{
     "Reasoning": "The current screen shows google result of amazon, in previous action I have searched amazon on google. Then I need to click on the first search results to go to amazon.com.",
     "Next Action": "left_click",
     "Box ID": m
@@ -471,16 +458,15 @@ IMPORTANT NOTES:
         plan = extract_data(vlm_response, "json")
 
         # Create a filename with timestamp
-        plan_filename = f"plan.json"
+        plan_filename = "plan.json"
         plan_path = os.path.join(self.save_folder, plan_filename)
 
         # Save the plan to a file
         try:
             with open(plan_path, "w") as f:
                 f.write(plan)
-            print(f"Plan successfully saved to {plan_path}")
-        except Exception as e:
-            print(f"Error saving plan to {plan_path}: {str(e)}")
+        except Exception:
+            pass
 
         return plan
 
@@ -500,11 +486,10 @@ IMPORTANT NOTES:
             provider_base_url="https://api.openai.com/v1",
             temperature=0,
         )
-        updated_ledger = extract_data(vlm_response, "json")
-        return updated_ledger
+        return extract_data(vlm_response, "json")
 
-    def _get_plan_prompt(self, task):
-        plan_prompt = f"""
+    def _get_plan_prompt(self, task) -> str:
+        return f"""
         please devise a short bullet-point plan for addressing the original user task: {task}
         You should write your plan in a json dict, e.g:```json
 {{
@@ -514,10 +499,9 @@ IMPORTANT NOTES:
 }}```
         Now start your answer directly.
         """
-        return plan_prompt
 
 
-def _remove_som_images(messages):
+def _remove_som_images(messages) -> None:
     for msg in messages:
         msg_content = msg["content"]
         if isinstance(msg_content, list):
@@ -536,7 +520,7 @@ def _maybe_filter_to_n_most_recent_images(
     """
     With the assumption that images are screenshots that are of diminishing value as
     the conversation progresses, remove all but the final `images_to_keep` tool_result
-    images in place
+    images in place.
     """
     if images_to_keep is None:
         return messages
@@ -570,12 +554,12 @@ def _maybe_filter_to_n_most_recent_images(
                         if (
                             isinstance(tool_result_entry, dict)
                             and tool_result_entry.get("type") == "image"
-                        ):
-                            if images_to_remove > 0:
-                                images_to_remove -= 1
-                                continue
+                        ) and images_to_remove > 0:
+                            images_to_remove -= 1
+                            continue
                         new_tool_result_content.append(tool_result_entry)
                     cnt["content"] = new_tool_result_content
                 # Append fixed content to current message's content list
                 new_content.append(cnt)
             msg["content"] = new_content
+    return None

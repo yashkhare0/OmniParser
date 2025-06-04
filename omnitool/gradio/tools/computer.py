@@ -1,16 +1,15 @@
 import base64
+import re
 import time
 from enum import StrEnum
 from typing import Literal, TypedDict
 
-from PIL import Image
-
+import requests
 from anthropic.types.beta import BetaToolComputerUse20241022Param
+from PIL import Image
 
 from .base import BaseAnthropicTool, ToolError, ToolResult
 from .screen_capture import get_screenshot
-import requests
-import re
 
 OUTPUT_DIR = "./tmp/outputs"
 
@@ -78,7 +77,7 @@ class ComputerTool(BaseAnthropicTool):
     @property
     def options(self) -> ComputerToolOptions:
         width, height = self.scale_coordinates(
-            ScalingSource.COMPUTER, self.width, self.height
+            ScalingSource.COMPUTER, self.width, self.height,
         )
         return {
             "display_width_px": width,
@@ -89,7 +88,7 @@ class ComputerTool(BaseAnthropicTool):
     def to_params(self) -> BetaToolComputerUse20241022Param:
         return {"name": self.name, "type": self.api_type, **self.options}
 
-    def __init__(self, is_scaling: bool = False):
+    def __init__(self, is_scaling: bool = False) -> None:
         super().__init__()
 
         # Get screen width and height using Windows command
@@ -98,7 +97,6 @@ class ComputerTool(BaseAnthropicTool):
         self.offset_y = 0
         self.is_scaling = is_scaling
         self.width, self.height = self.get_screen_size()
-        print(f"screen size: {self.width}, {self.height}")
 
         self.key_conversion = {
             "Page_Down": "pagedown",
@@ -115,9 +113,6 @@ class ComputerTool(BaseAnthropicTool):
         coordinate: tuple[int, int] | None = None,
         **kwargs,
     ):
-        print(
-            f"action: {action}, text: {text}, coordinate: {coordinate}, is_scaling: {self.is_scaling}"
-        )
         if action in ("mouse_move", "left_click_drag"):
             if coordinate is None:
                 raise ToolError(f"coordinate is required for {action}")
@@ -131,7 +126,7 @@ class ComputerTool(BaseAnthropicTool):
 
             if self.is_scaling:
                 x, y = self.scale_coordinates(
-                    ScalingSource.API, coordinate[0], coordinate[1]
+                    ScalingSource.API, coordinate[0], coordinate[1],
                 )
             else:
                 x, y = coordinate
@@ -142,7 +137,6 @@ class ComputerTool(BaseAnthropicTool):
             # x += self.offset_x # TODO - check if this is needed
             # y += self.offset_y
 
-            print(f"mouse move to {x}, {y}")
 
             if action == "mouse_move":
                 self.send_to_vm(f"pyautogui.moveTo({x}, {y})")
@@ -151,7 +145,7 @@ class ComputerTool(BaseAnthropicTool):
                 current_x, current_y = self.send_to_vm("pyautogui.position()")
                 self.send_to_vm(f"pyautogui.dragTo({x}, {y}, duration=0.5)")
                 return ToolResult(
-                    output=f"Dragged mouse from ({current_x}, {current_y}) to ({x}, {y})"
+                    output=f"Dragged mouse from ({current_x}, {current_y}) to ({x}, {y})",
                 )
 
         if action in ("key", "type"):
@@ -169,13 +163,13 @@ class ComputerTool(BaseAnthropicTool):
                     key = self.key_conversion.get(key.strip(), key.strip())
                     key = key.lower()
                     self.send_to_vm(
-                        f"pyautogui.keyDown('{key}')"
+                        f"pyautogui.keyDown('{key}')",
                     )  # Press down each key
                 for key in reversed(keys):
                     key = self.key_conversion.get(key.strip(), key.strip())
                     key = key.lower()
                     self.send_to_vm(
-                        f"pyautogui.keyUp('{key}')"
+                        f"pyautogui.keyUp('{key}')",
                     )  # Release each key in reverse order
                 return ToolResult(output=f"Pressed keys: {text}")
 
@@ -183,7 +177,7 @@ class ComputerTool(BaseAnthropicTool):
                 # default click before type TODO: check if this is needed
                 self.send_to_vm("pyautogui.click()")
                 self.send_to_vm(
-                    f"pyautogui.typewrite('{text}', interval={TYPING_DELAY_MS / 1000})"
+                    f"pyautogui.typewrite('{text}', interval={TYPING_DELAY_MS / 1000})",
                 )
                 self.send_to_vm("pyautogui.press('enter')")
                 screenshot_base64 = (await self.screenshot()).base64_image
@@ -237,9 +231,7 @@ class ComputerTool(BaseAnthropicTool):
         raise ToolError(f"Invalid action: {action}")
 
     def send_to_vm(self, action: str):
-        """
-        Executes a python command on the server. Only return tuple of x,y when action is "pyautogui.position()"
-        """
+        """Executes a python command on the server. Only return tuple of x,y when action is "pyautogui.position()"."""
         prefix = "import pyautogui; pyautogui.FAILSAFE = False;"
         command_list = ["python", "-c", f"{prefix} {action}"]
         parse = action == "pyautogui.position()"
@@ -247,31 +239,29 @@ class ComputerTool(BaseAnthropicTool):
             command_list[-1] = f"{prefix} print({action})"
 
         try:
-            print(f"sending to vm: {command_list}")
             response = requests.post(
-                f"http://localhost:5000/execute",
+                "http://localhost:5000/execute",
                 headers={"Content-Type": "application/json"},
                 json={"command": command_list},
                 timeout=90,
             )
             time.sleep(0.7)  # avoid async error as actions take time to complete
-            print(f"action executed")
             if response.status_code != 200:
                 raise ToolError(
-                    f"Failed to execute command. Status code: {response.status_code}"
+                    f"Failed to execute command. Status code: {response.status_code}",
                 )
             if parse:
                 output = response.json()["output"].strip()
                 match = re.search(r"Point\(x=(\d+),\s*y=(\d+)\)", output)
                 if not match:
                     raise ToolError(
-                        f"Could not parse coordinates from output: {output}"
+                        f"Could not parse coordinates from output: {output}",
                     )
                 x, y = map(int, match.groups())
                 return x, y
         except requests.exceptions.RequestException as e:
             raise ToolError(
-                f"An error occurred while trying to execute the command: {str(e)}"
+                f"An error occurred while trying to execute the command: {e!s}",
             )
 
     async def screenshot(self):
@@ -280,7 +270,7 @@ class ComputerTool(BaseAnthropicTool):
             self.target_dimension = MAX_SCALING_TARGETS["WXGA"]
         width, height = self.target_dimension["width"], self.target_dimension["height"]
         screenshot, path = get_screenshot(
-            resize=True, target_width=width, target_height=height
+            resize=True, target_width=width, target_height=height,
         )
         time.sleep(0.7)  # avoid async error as actions take time to complete
         return ToolResult(base64_image=base64.b64encode(path.read_bytes()).decode())
@@ -302,7 +292,7 @@ class ComputerTool(BaseAnthropicTool):
         ratio = self.width / self.height
         target_dimension = None
 
-        for target_name, dimension in MAX_SCALING_TARGETS.items():
+        for _target_name, dimension in MAX_SCALING_TARGETS.items():
             # allow some error in the aspect ratio - not ratios are exactly 16:9
             if abs(dimension["width"] / dimension["height"] - ratio) < 0.02:
                 if dimension["width"] < self.width:
@@ -328,23 +318,23 @@ class ComputerTool(BaseAnthropicTool):
         return round(x * x_scaling_factor), round(y * y_scaling_factor)
 
     def get_screen_size(self):
-        """Return width and height of the screen"""
+        """Return width and height of the screen."""
         try:
             response = requests.post(
-                f"http://localhost:5000/execute",
+                "http://localhost:5000/execute",
                 headers={"Content-Type": "application/json"},
                 json={
                     "command": [
                         "python",
                         "-c",
                         "import pyautogui; print(pyautogui.size())",
-                    ]
+                    ],
                 },
                 timeout=90,
             )
             if response.status_code != 200:
                 raise ToolError(
-                    f"Failed to get screen size. Status code: {response.status_code}"
+                    f"Failed to get screen size. Status code: {response.status_code}",
                 )
 
             output = response.json()["output"].strip()
@@ -355,5 +345,5 @@ class ComputerTool(BaseAnthropicTool):
             return width, height
         except requests.exceptions.RequestException as e:
             raise ToolError(
-                f"An error occurred while trying to get screen size: {str(e)}"
+                f"An error occurred while trying to get screen size: {e!s}",
             )

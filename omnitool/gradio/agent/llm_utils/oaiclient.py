@@ -1,8 +1,6 @@
-import os
-import logging
-import base64
 import requests
-from .utils import is_image_path, encode_image
+
+from .utils import encode_image, is_image_path
 
 
 def run_oai_interleaved(
@@ -29,7 +27,7 @@ def run_oai_interleaved(
                             content = {
                                 "type": "image_url",
                                 "image_url": {
-                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                    "url": f"data:image/jpeg;base64,{base64_image}",
                                 },
                             }
                         else:
@@ -61,15 +59,12 @@ def run_oai_interleaved(
         payload["max_tokens"] = max_tokens
 
     response = requests.post(
-        f"{provider_base_url}/chat/completions", headers=headers, json=payload
+        f"{provider_base_url}/chat/completions", headers=headers, json=payload,
     )
 
     try:
         text = response.json()["choices"][0]["message"]["content"]
         token_usage = int(response.json()["usage"]["total_tokens"])
         return text, token_usage
-    except Exception as e:
-        print(
-            f"Error in interleaved openAI: {e}. This may due to your invalid API key. Please check the response: {response.json()} "
-        )
+    except Exception:
         return response.json()

@@ -1,36 +1,19 @@
-"""
-Agentic sampling loop that calls the Anthropic API and local implenmentation of anthropic-defined computer use tools.
-"""
+"""Agentic sampling loop that calls the Anthropic API and local implenmentation of anthropic-defined computer use tools."""
 
-import asyncio
-import platform
 from collections.abc import Callable
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, cast
+from typing import cast
 
 from anthropic import Anthropic, AnthropicBedrock, AnthropicVertex, APIResponse
 from anthropic.types import (
     ToolResultBlockParam,
 )
 from anthropic.types.beta import (
-    BetaContentBlock,
-    BetaContentBlockParam,
-    BetaImageBlockParam,
     BetaMessage,
     BetaMessageParam,
-    BetaTextBlockParam,
-    BetaToolResultBlockParam,
 )
-from anthropic.types import TextBlock
-from anthropic.types.beta import BetaMessage, BetaTextBlock, BetaToolUseBlock
-
-from tools import ComputerTool, ToolCollection, ToolResult
-
-from PIL import Image
-from io import BytesIO
-import gradio as gr
-from typing import Dict
+from tools import ComputerTool, ToolCollection
 
 BETA_FLAG = "computer-use-2024-10-22"
 
@@ -58,7 +41,7 @@ class AnthropicActor:
         max_tokens: int = 4096,
         only_n_most_recent_images: int | None = None,
         print_usage: bool = True,
-    ):
+    ) -> None:
         self.model = model
         self.provider = provider
         self.api_key = api_key
@@ -83,12 +66,10 @@ class AnthropicActor:
             self.client = AnthropicBedrock()
 
     def __call__(self, *, messages: list[BetaMessageParam]):
-        """
-        Generate a response given history messages.
-        """
+        """Generate a response given history messages."""
         if self.only_n_most_recent_images:
             _maybe_filter_to_n_most_recent_images(
-                messages, self.only_n_most_recent_images
+                messages, self.only_n_most_recent_images,
             )
 
         # Call the API synchronously
@@ -104,7 +85,6 @@ class AnthropicActor:
         self.api_response_callback(cast(APIResponse[BetaMessage], raw_response))
 
         response = raw_response.parse()
-        print(f"AnthropicActor response: {response}")
 
         self.total_token_usage += (
             response.usage.input_tokens + response.usage.output_tokens
@@ -115,9 +95,7 @@ class AnthropicActor:
         )
 
         if self.print_usage:
-            print(
-                f"Claude total token usage so far: {self.total_token_usage}, total cost so far: $USD{self.total_cost}"
-            )
+            pass
 
         return response
 
@@ -163,9 +141,9 @@ def _maybe_filter_to_n_most_recent_images(
         if isinstance(tool_result.get("content"), list):
             new_content = []
             for content in tool_result.get("content", []):
-                if isinstance(content, dict) and content.get("type") == "image":
-                    if images_to_remove > 0:
-                        images_to_remove -= 1
-                        continue
+                if isinstance(content, dict) and content.get("type") == "image" and images_to_remove > 0:
+                    images_to_remove -= 1
+                    continue
                 new_content.append(content)
             tool_result["content"] = new_content
+    return None

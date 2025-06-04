@@ -1,22 +1,19 @@
-"""
-Agentic sampling loop that calls the Anthropic API and local implenmentation of anthropic-defined computer use tools.
-"""
+"""Agentic sampling loop that calls the Anthropic API and local implenmentation of anthropic-defined computer use tools."""
 
 from collections.abc import Callable
 from enum import StrEnum
 
+from agent.anthropic_agent import AnthropicActor
+from agent.llm_utils.omniparserclient import OmniParserClient
+from agent.vlm_agent import VLMAgent
+from agent.vlm_agent_with_orchestrator import VLMOrchestratedAgent
 from anthropic import APIResponse
 from anthropic.types import (
     TextBlock,
 )
 from anthropic.types.beta import BetaContentBlock, BetaMessage, BetaMessageParam
-from tools import ToolResult
-
-from agent.llm_utils.omniparserclient import OmniParserClient
-from agent.anthropic_agent import AnthropicActor
-from agent.vlm_agent import VLMAgent
-from agent.vlm_agent_with_orchestrator import VLMOrchestratedAgent
 from executor.anthropic_executor import AnthropicExecutor
+from tools import ToolResult
 
 BETA_FLAG = "computer-use-2024-10-22"
 
@@ -50,10 +47,7 @@ def sampling_loop_sync(
     omniparser_url: str,
     save_folder: str = "./uploads",
 ):
-    """
-    Synchronous agentic sampling loop for the assistant/tool interaction of computer use.
-    """
-    print("in sampling_loop_sync, model:", model)
+    """Synchronous agentic sampling loop for the assistant/tool interaction of computer use."""
     omniparser_client = OmniParserClient(url=f"http://{omniparser_url}/parse/")
     if model == "claude-3-5-sonnet-20241022":
         # Register Actor and Executor
@@ -65,15 +59,13 @@ def sampling_loop_sync(
             max_tokens=max_tokens,
             only_n_most_recent_images=only_n_most_recent_images,
         )
-    elif model in set(
-        [
+    elif model in {
             "omniparser + gpt-4o",
             "omniparser + o1",
             "omniparser + o3-mini",
             "omniparser + R1",
             "omniparser + qwen2.5vl",
-        ]
-    ):
+        }:
         actor = VLMAgent(
             model=model,
             provider=provider,
@@ -83,15 +75,13 @@ def sampling_loop_sync(
             max_tokens=max_tokens,
             only_n_most_recent_images=only_n_most_recent_images,
         )
-    elif model in set(
-        [
+    elif model in {
             "omniparser + gpt-4o-orchestrated",
             "omniparser + o1-orchestrated",
             "omniparser + o3-mini-orchestrated",
             "omniparser + R1-orchestrated",
             "omniparser + qwen2.5vl-orchestrated",
-        ]
-    ):
+        }:
         actor = VLMOrchestratedAgent(
             model=model,
             provider=provider,
@@ -108,11 +98,9 @@ def sampling_loop_sync(
         output_callback=output_callback,
         tool_output_callback=tool_output_callback,
     )
-    print(f"Model Inited: {model}, Provider: {provider}")
 
     tool_result_content = None
 
-    print(f"Start the message loop. User messages: {messages}")
 
     if model == "claude-3-5-sonnet-20241022":  # Anthropic loop
         while True:
@@ -136,8 +124,7 @@ def sampling_loop_sync(
 
             messages.append({"content": tool_result_content, "role": "user"})
 
-    elif model in set(
-        [
+    elif model in {
             "omniparser + gpt-4o",
             "omniparser + o1",
             "omniparser + o3-mini",
@@ -148,12 +135,11 @@ def sampling_loop_sync(
             "omniparser + o3-mini-orchestrated",
             "omniparser + R1-orchestrated",
             "omniparser + qwen2.5vl-orchestrated",
-        ]
-    ):
+        }:
         while True:
             parsed_screen = omniparser_client()
             tools_use_needed, vlm_response_json = actor(
-                messages=messages, parsed_screen=parsed_screen
+                messages=messages, parsed_screen=parsed_screen,
             )
 
             for message, tool_result_content in executor(tools_use_needed, messages):

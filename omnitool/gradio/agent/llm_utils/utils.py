@@ -1,12 +1,9 @@
 import base64
 
 
-def is_image_path(text):
+def is_image_path(text) -> bool:
     image_extensions = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".tif")
-    if text.endswith(image_extensions):
-        return True
-    else:
-        return False
+    return bool(text.endswith(image_extensions))
 
 
 def encode_image(image_path):

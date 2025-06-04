@@ -29,12 +29,12 @@ class ToolResult:
     base64_image: str | None = None
     system: str | None = None
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return any(getattr(self, field.name) for field in fields(self))
 
     def __add__(self, other: "ToolResult"):
         def combine_fields(
-            field: str | None, other_field: str | None, concatenate: bool = True
+            field: str | None, other_field: str | None, concatenate: bool = True,
         ):
             if field and other_field:
                 if concatenate:
@@ -61,5 +61,5 @@ class ToolFailure(ToolResult):
 class ToolError(Exception):
     """Raised when a tool encounters an error."""
 
-    def __init__(self, message):
+    def __init__(self, message) -> None:
         self.message = message

@@ -1,8 +1,9 @@
-import requests
 import base64
 from pathlib import Path
-from tools.screen_capture import get_screenshot
+
+import requests
 from agent.llm_utils.utils import encode_image
+from tools.screen_capture import get_screenshot
 
 OUTPUT_DIR = "./tmp/outputs"
 
@@ -19,7 +20,6 @@ class OmniParserClient:
         image_base64 = encode_image(screenshot_path)
         response = requests.post(self.url, json={"base64_image": image_base64})
         response_json = response.json()
-        print("omniparser latency:", response_json["latency"])
 
         som_image_data = base64.b64decode(response_json["som_image_base64"])
         screenshot_path_uuid = Path(screenshot_path).stem.replace("screenshot_", "")
@@ -31,8 +31,7 @@ class OmniParserClient:
         response_json["height"] = screenshot.size[1]
         response_json["original_screenshot_base64"] = image_base64
         response_json["screenshot_uuid"] = screenshot_path_uuid
-        response_json = self.reformat_messages(response_json)
-        return response_json
+        return self.reformat_messages(response_json)
 
     def reformat_messages(self, response_json: dict):
         screen_info = ""

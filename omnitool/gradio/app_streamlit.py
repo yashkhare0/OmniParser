@@ -1,28 +1,23 @@
 """
 Streamlit implementation of the OmniTool frontend.
-Usage: streamlit run app_streamlit.py -- --windows_host_url localhost:8006 --omniparser_server_url localhost:8000
+Usage: streamlit run app_streamlit.py -- --windows_host_url localhost:8006 --omniparser_server_url localhost:8000.
 """
 
-import os
-import io
-import shutil
-import mimetypes
 import argparse
 import base64
+import mimetypes
+import os
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import cast
-from enum import StrEnum
+
 import streamlit as st
 from anthropic import APIResponse
 from anthropic.types import TextBlock
 from anthropic.types.beta import BetaMessage, BetaTextBlock, BetaToolUseBlock
 from anthropic.types.tool_use_block import ToolUseBlock
-import requests
-from requests.exceptions import RequestException
-
 from loop import (
-    APIProvider,
     sampling_loop_sync,
 )
 from tools import ToolResult
@@ -48,8 +43,8 @@ def parse_arguments():
     return parser.parse_known_args()[0]
 
 
-def initialize_session_state():
-    """Initialize session state variables"""
+def initialize_session_state() -> None:
+    """Initialize session state variables."""
     if "messages" not in st.session_state:
         st.session_state.messages = []
     if "model" not in st.session_state:
@@ -74,8 +69,8 @@ def initialize_session_state():
         st.session_state.stop = False
 
 
-def get_file_viewer_html(file_path=None, windows_host_url=None):
-    """Generate HTML to view a file based on its type"""
+def get_file_viewer_html(file_path=None, windows_host_url=None) -> str:
+    """Generate HTML to view a file based on its type."""
     if not file_path:
         # Return the VNC viewer iframe
         return f'<iframe src="http://{windows_host_url}/vnc.html?view_only=1&autoconnect=1&resize=scale" width="100%" height="580" allow="fullscreen"></iframe>'
@@ -112,8 +107,8 @@ def get_file_viewer_html(file_path=None, windows_host_url=None):
         return f'<div class="file-viewer"><h3>{file_path.name}</h3><p>File type: {mime_type or "Unknown"}</p><p>Size: {size_kb:.2f} KB</p><p>This file type cannot be displayed in the browser.</p></div>'
 
 
-def handle_file_upload(uploaded_files):
-    """Handle file uploads and store them in the upload directory"""
+def handle_file_upload(uploaded_files) -> None:
+    """Handle file uploads and store them in the upload directory."""
     if uploaded_files:
         for file in uploaded_files:
             file_path = UPLOAD_FOLDER / file.name
@@ -123,18 +118,18 @@ def handle_file_upload(uploaded_files):
                 st.session_state.uploaded_files.append(str(file_path))
 
 
-def _api_response_callback(response: APIResponse[BetaMessage]):
+def _api_response_callback(response: APIResponse[BetaMessage]) -> None:
     response_id = datetime.now().isoformat()
     st.session_state.responses[response_id] = response
 
 
-def _tool_output_callback(tool_output: ToolResult, tool_id: str):
+def _tool_output_callback(tool_output: ToolResult, tool_id: str) -> None:
     st.session_state.tools[tool_id] = tool_output
 
 
-def chatbot_output_callback(message, hide_images=False):
+def chatbot_output_callback(message, hide_images=False) -> None:
     def _render_message(
-        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult, hide_images=False
+        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult, hide_images=False,
     ):
         if isinstance(message, str):
             return message
@@ -164,11 +159,11 @@ def chatbot_output_callback(message, hide_images=False):
     rendered_message = _render_message(message, hide_images)
     if rendered_message:
         st.session_state.messages.append(
-            {"role": "assistant", "content": rendered_message}
+            {"role": "assistant", "content": rendered_message},
         )
 
 
-def main():
+def main() -> None:
     args = parse_arguments()
     initialize_session_state()
 
@@ -290,7 +285,7 @@ def main():
 
         # API settings
         api_key = st.text_input(
-            "API Key", value=st.session_state.api_key, type="password"
+            "API Key", value=st.session_state.api_key, type="password",
         )
         st.session_state.api_key = api_key
 
@@ -304,7 +299,7 @@ def main():
             file_options.extend([Path(f).name for f in st.session_state.uploaded_files])
 
         selected_file = st.selectbox(
-            "View File", options=file_options, format_func=lambda x: x
+            "View File", options=file_options, format_func=lambda x: x,
         )
         st.session_state.selected_file = selected_file
 
@@ -321,7 +316,7 @@ def main():
             st.markdown("### Chat")
         with col_header_2:
             share_button = st.button(
-                "📤 Share", key="share_btn", help="Share conversation"
+                "📤 Share", key="share_btn", help="Share conversation",
             )
             # Apply custom styling with HTML
             st.markdown(
@@ -370,7 +365,7 @@ def main():
                     st.markdown(f"**You:** {message['content']}")
                 else:
                     st.markdown(
-                        f"**Assistant:** {message['content']}", unsafe_allow_html=True
+                        f"**Assistant:** {message['content']}", unsafe_allow_html=True,
                     )
 
         # Chat input and buttons
@@ -437,7 +432,7 @@ def main():
         # File upload area (hidden by default, shown when upload button is clicked)
         if upload_button:
             uploaded_files = st.file_uploader(
-                "Upload Files", accept_multiple_files=True, label_visibility="collapsed"
+                "Upload Files", accept_multiple_files=True, label_visibility="collapsed",
             )
             if uploaded_files:
                 handle_file_upload(uploaded_files)
@@ -446,7 +441,7 @@ def main():
                 file_options = ["None"]
                 if st.session_state.uploaded_files:
                     file_options.extend(
-                        [Path(f).name for f in st.session_state.uploaded_files]
+                        [Path(f).name for f in st.session_state.uploaded_files],
                     )
                 st.rerun()
 
@@ -490,26 +485,25 @@ def main():
         if view_mode == "OmniTool Computer":
             viewer_html = get_file_viewer_html(windows_host_url=args.windows_host_url)
             st.components.v1.html(viewer_html, height=600, scrolling=True)
-        else:  # File Viewer mode
-            if (
-                st.session_state.selected_file
-                and st.session_state.selected_file != "None"
-            ):
-                file_path = next(
-                    (
-                        f
-                        for f in st.session_state.uploaded_files
-                        if Path(f).name == st.session_state.selected_file
-                    ),
-                    None,
-                )
-                if file_path:
-                    viewer_html = get_file_viewer_html(file_path=file_path)
-                    st.components.v1.html(viewer_html, height=600, scrolling=True)
-                else:
-                    st.error(f"Could not find file: {st.session_state.selected_file}")
+        elif (
+            st.session_state.selected_file
+            and st.session_state.selected_file != "None"
+        ):
+            file_path = next(
+                (
+                    f
+                    for f in st.session_state.uploaded_files
+                    if Path(f).name == st.session_state.selected_file
+                ),
+                None,
+            )
+            if file_path:
+                viewer_html = get_file_viewer_html(file_path=file_path)
+                st.components.v1.html(viewer_html, height=600, scrolling=True)
             else:
-                st.info("Please select a file to view from the sidebar.")
+                st.error(f"Could not find file: {st.session_state.selected_file}")
+        else:
+            st.info("Please select a file to view from the sidebar.")
 
         # Debug information (temporary)
         with st.expander("Debug Info"):
@@ -518,7 +512,7 @@ def main():
             st.write("Available Files:", st.session_state.uploaded_files)
             if view_mode == "File Viewer" and st.session_state.selected_file != "None":
                 st.write(
-                    "File Path:", file_path if "file_path" in locals() else "Not found"
+                    "File Path:", file_path if "file_path" in locals() else "Not found",
                 )
 
 

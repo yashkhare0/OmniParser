@@ -1,21 +1,22 @@
 """
 The app contains:
 - a new UI for the OmniParser AI Agent.
-- 
+-
 python app_new.py --windows_host_url localhost:8006 --omniparser_server_url localhost:8000
 """
 
-import os
-import io
-import shutil
+import argparse
+import base64
 import mimetypes
+import os
+import shutil
 from datetime import datetime
 from enum import StrEnum
 from functools import partial
 from pathlib import Path
-from typing import cast, List, Optional
-import argparse
-import gradio as gr
+from typing import Optional, cast
+
+import requests
 from anthropic import APIResponse
 from anthropic.types import TextBlock
 from anthropic.types.beta import BetaMessage, BetaTextBlock, BetaToolUseBlock
@@ -24,10 +25,10 @@ from loop import (
     APIProvider,
     sampling_loop_sync,
 )
-from tools import ToolResult
-import requests
 from requests.exceptions import RequestException
-import base64
+from tools import ToolResult
+
+import gradio as gr
 
 CONFIG_DIR = Path("~/.anthropic").expanduser()
 API_KEY_FILE = CONFIG_DIR / "api_key"
@@ -64,7 +65,7 @@ class Sender(StrEnum):
 
 
 def load_existing_files():
-    """Load all existing files from the uploads folder"""
+    """Load all existing files from the uploads folder."""
     files = []
     if RUN_FOLDER.exists():
         for file_path in RUN_FOLDER.iterdir():
@@ -73,7 +74,7 @@ def load_existing_files():
     return files
 
 
-def setup_state(state):
+def setup_state(state) -> None:
     if "messages" not in state:
         state["messages"] = []
     if "model" not in state:
@@ -104,16 +105,15 @@ def setup_state(state):
         )  # Start with an empty list instead of loading existing files
 
 
-async def main(state):
-    """Render loop for Gradio"""
+async def main(state) -> str:
+    """Render loop for Gradio."""
     setup_state(state)
     return "Setup completed"
 
 
-def validate_auth(provider: APIProvider, api_key: str | None):
-    if provider == APIProvider.ANTHROPIC:
-        if not api_key:
-            return "Enter your Anthropic API key to continue."
+def validate_auth(provider: APIProvider, api_key: str | None) -> Optional[str]:
+    if provider == APIProvider.ANTHROPIC and not api_key:
+        return "Enter your Anthropic API key to continue."
     if provider == APIProvider.BEDROCK:
         import boto3
 
@@ -127,10 +127,11 @@ def validate_auth(provider: APIProvider, api_key: str | None):
             return "Set the CLOUD_ML_REGION environment variable to use the Vertex API."
         try:
             google.auth.default(
-                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
             )
         except DefaultCredentialsError:
             return "Your google cloud credentials are not set up correctly."
+    return None
 
 
 def load_from_storage(filename: str) -> str | None:
@@ -141,8 +142,8 @@ def load_from_storage(filename: str) -> str | None:
             data = file_path.read_text().strip()
             if data:
                 return data
-    except Exception as e:
-        print(f"Debug: Error loading {filename}: {e}")
+    except Exception:
+        pass
     return None
 
 
@@ -154,25 +155,24 @@ def save_to_storage(filename: str, data: str) -> None:
         file_path.write_text(data)
         # Ensure only user can read/write the file
         file_path.chmod(0o600)
-    except Exception as e:
-        print(f"Debug: Error saving {filename}: {e}")
+    except Exception:
+        pass
 
 
-def _api_response_callback(response: APIResponse[BetaMessage], response_state: dict):
+def _api_response_callback(response: APIResponse[BetaMessage], response_state: dict) -> None:
     response_id = datetime.now().isoformat()
     response_state[response_id] = response
 
 
-def _tool_output_callback(tool_output: ToolResult, tool_id: str, tool_state: dict):
+def _tool_output_callback(tool_output: ToolResult, tool_id: str, tool_state: dict) -> None:
     tool_state[tool_id] = tool_output
 
 
-def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="bot"):
+def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="bot") -> None:
     def _render_message(
-        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult, hide_images=False
+        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult, hide_images=False,
     ):
 
-        print(f"_render_message: {str(message)[:100]}")
 
         if isinstance(message, str):
             return message
@@ -187,7 +187,7 @@ def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="b
             and not hasattr(message, "error")
             and not hasattr(message, "output")
         ):  # return None if hide_images is True
-            return
+            return None
         # render tool result
         if is_tool_result:
             message = cast(ToolResult, message)
@@ -200,8 +200,9 @@ def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="b
                 # image_data = base64.b64decode(message.base64_image)
                 # return gr.Image(value=Image.open(io.BytesIO(image_data)))
                 return f'<img src="data:image/png;base64,{message.base64_image}">'
+            return None
 
-        elif isinstance(message, BetaTextBlock) or isinstance(message, TextBlock):
+        elif isinstance(message, (BetaTextBlock, TextBlock)):
             # Format reasoning text in a collapsible dropdown
             return f"Next step Reasoning: {message.text}"
             # reasoning_text = message.text
@@ -213,7 +214,7 @@ def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="b
             #     </div>
             # </details>
             # '''
-        elif isinstance(message, BetaToolUseBlock) or isinstance(message, ToolUseBlock):
+        elif isinstance(message, (BetaToolUseBlock, ToolUseBlock)):
             # return f"Next I will perform the following action: {message.input}"
             return None
         else:
@@ -234,7 +235,7 @@ def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="b
         chatbot_state.append((message, None))
 
     # Create a concise version of the chatbot state for printing
-    concise_state = [
+    [
         (_truncate_string(user_msg), _truncate_string(bot_msg))
         for user_msg, bot_msg in chatbot_state
     ]
@@ -254,7 +255,7 @@ def valid_params(user_input, state):
             response = requests.get(url, timeout=3)
             if response.status_code != 200:
                 errors.append(f"{server_name} is not responding")
-        except RequestException as e:
+        except RequestException:
             errors.append(f"{server_name} is not responding")
 
     if not state["api_key"].strip():
@@ -280,7 +281,7 @@ def process_input(user_input, state):
         {
             "role": Sender.USER,
             "content": [TextBlock(type="text", text=user_input)],
-        }
+        },
     )
 
     # Append the user's message to chatbot_messages with None for the assistant's reply
@@ -289,8 +290,6 @@ def process_input(user_input, state):
         "chatbot_messages"
     ], gr.update()  # Yield to update the chatbot UI with the user's message
 
-    print("state")
-    print(state)
 
     # Run sampling_loop_sync with the chatbot_output_callback
     for loop_msg in sampling_loop_sync(
@@ -304,7 +303,7 @@ def process_input(user_input, state):
         ),
         tool_output_callback=partial(_tool_output_callback, tool_state=state["tools"]),
         api_response_callback=partial(
-            _api_response_callback, response_state=state["responses"]
+            _api_response_callback, response_state=state["responses"],
         ),
         api_key=state["api_key"],
         only_n_most_recent_images=state["only_n_most_recent_images"],
@@ -316,7 +315,6 @@ def process_input(user_input, state):
             # Detect and add new files to the state
             file_choices_update = detect_new_files(state)
             yield state["chatbot_messages"], file_choices_update
-            print("End of task. Close the loop.")
             break
 
         yield state[
@@ -328,12 +326,12 @@ def process_input(user_input, state):
     yield state["chatbot_messages"], file_choices_update
 
 
-def stop_app(state):
+def stop_app(state) -> str:
     state["stop"] = True
     return "App stopped"
 
 
-def get_header_image_base64():
+def get_header_image_base64() -> Optional[str]:
     try:
         # Get the absolute path to the image relative to this script
         script_dir = Path(__file__).parent
@@ -342,13 +340,12 @@ def get_header_image_base64():
         with open(image_path, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
             return f"data:image/png;base64,{encoded_string}"
-    except Exception as e:
-        print(f"Failed to load header image: {e}")
+    except Exception:
         return None
 
 
-def get_file_viewer_html(file_path=None):
-    """Generate HTML to view a file based on its type"""
+def get_file_viewer_html(file_path=None) -> str:
+    """Generate HTML to view a file based on its type."""
     if not file_path:
         # Return the VNC viewer iframe
         return f'<iframe src="http://{args.windows_host_url}/vnc.html?view_only=1&autoconnect=1&resize=scale" width="100%" height="580" allow="fullscreen"></iframe>'
@@ -377,7 +374,7 @@ def get_file_viewer_html(file_path=None):
         # For text files, display the content with syntax highlighting for code
         try:
             content = file_path.read_text(
-                errors="replace"
+                errors="replace",
             )  # Use 'replace' to handle encoding issues
             # Escape HTML characters
             content = (
@@ -463,7 +460,7 @@ def get_file_viewer_html(file_path=None):
                 </div>
                 """
         except Exception as e:
-            return f'<div class="error-message">Error displaying PDF: {str(e)}</div>'
+            return f'<div class="error-message">Error displaying PDF: {e!s}</div>'
 
     else:
         # For other file types, show info but can't display
@@ -472,7 +469,7 @@ def get_file_viewer_html(file_path=None):
 
 
 def handle_file_upload(files, state):
-    """Handle file uploads and store them in the upload directory"""
+    """Handle file uploads and store them in the upload directory."""
     if not files:
         return gr.update(choices=[])
 
@@ -501,7 +498,7 @@ def handle_file_upload(files, state):
 
 
 def toggle_view(view_mode, file_path=None, state=None):
-    """Toggle between OmniTool Computer view and file viewer"""
+    """Toggle between OmniTool Computer view and file viewer."""
     # If switching to File Viewer mode, detect and add new files to the state
     file_choices_update = gr.update()
     if view_mode == "File Viewer" and state is not None:
@@ -513,18 +510,17 @@ def toggle_view(view_mode, file_path=None, state=None):
             get_file_viewer_html(),
             file_choices_update,
         )  # This returns the VNC iframe
-    else:  # File Viewer mode
-        if file_path:
-            return get_file_viewer_html(file_path), file_choices_update
-        else:
-            return (
-                get_file_viewer_html(),
-                file_choices_update,
-            )  # Default to VNC if no file selected
+    elif file_path:
+        return get_file_viewer_html(file_path), file_choices_update
+    else:
+        return (
+            get_file_viewer_html(),
+            file_choices_update,
+        )  # Default to VNC if no file selected
 
 
 def detect_new_files(state):
-    """Detect new files in the uploads folder and add them to the state"""
+    """Detect new files in the uploads folder and add them to the state."""
     new_files_count = 0
     if RUN_FOLDER.exists():
         current_files = set(state["uploaded_files"])
@@ -535,23 +531,19 @@ def detect_new_files(state):
                     # This is a new file not yet in the state
                     state["uploaded_files"].append(file_path_str)
                     new_files_count += 1
-                    print(f"Added new file to state: {file_path_str}")
 
     # Return updated file choices
     file_choices = [(Path(path).name, path) for path in state["uploaded_files"]]
-    print(
-        f"Detected {new_files_count} new files. Total files in state: {len(state['uploaded_files'])}"
-    )
     return gr.update(choices=file_choices)
 
 
 def refresh_files(state):
-    """Refresh the list of files from the current session and detect new files"""
+    """Refresh the list of files from the current session and detect new files."""
     return detect_new_files(state)
 
 
 def auto_refresh_files(state):
-    """Automatically refresh the list of files from the current session and detect new files"""
+    """Automatically refresh the list of files from the current session and detect new files."""
     return detect_new_files(state)
 
 
@@ -569,7 +561,7 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
             font-size: 18px;  /* Adjust the font size as needed */
         }
         </style>
-    """
+    """,
     )
     state = gr.State({})
 
@@ -582,7 +574,7 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
             elem_classes="no-padding",
         )
         gr.HTML(
-            '<h1 style="text-align: center; font-weight: normal; margin-bottom: 20px;">Omni<span style="font-weight: bold;">Tool</span></h1>'
+            '<h1 style="text-align: center; font-weight: normal; margin-bottom: 20px;">Omni<span style="font-weight: bold;">Tool</span></h1>',
         )
     else:
         gr.Markdown("# OmniTool", elem_classes="text-center")
@@ -642,7 +634,7 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
 
     # File Upload Section
     with gr.Accordion(
-        "File Upload & Management", open=True, elem_classes="accordion-header"
+        "File Upload & Management", open=True, elem_classes="accordion-header",
     ):
         with gr.Row():
             with gr.Column():
@@ -652,21 +644,20 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
                     type="filepath",
                     elem_classes="file-upload-area",
                 )
-            with gr.Column():
-                with gr.Row():
-                    upload_button = gr.Button(
-                        "Upload Files", variant="primary", elem_classes="primary-button"
-                    )
-                    refresh_button = gr.Button(
-                        "Refresh Files",
-                        variant="secondary",
-                        elem_classes="secondary-button",
-                    )
+            with gr.Column(), gr.Row():
+                upload_button = gr.Button(
+                    "Upload Files", variant="primary", elem_classes="primary-button",
+                )
+                refresh_button = gr.Button(
+                    "Refresh Files",
+                    variant="secondary",
+                    elem_classes="secondary-button",
+                )
 
         with gr.Row():
             # Initialize file choices as an empty list
             view_file_dropdown = gr.Dropdown(
-                label="View File", choices=[], interactive=True, container=True
+                label="View File", choices=[], interactive=True, container=True,
             )
             view_toggle = gr.Radio(
                 label="Display Mode",
@@ -684,11 +675,11 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
             )
         with gr.Column(scale=1, min_width=50):
             submit_button = gr.Button(
-                value="Send", variant="primary", elem_classes="primary-button"
+                value="Send", variant="primary", elem_classes="primary-button",
             )
         with gr.Column(scale=1, min_width=50):
             stop_button = gr.Button(
-                value="Stop", variant="secondary", elem_classes="secondary-button"
+                value="Stop", variant="secondary", elem_classes="secondary-button",
             )
 
     with gr.Row():
@@ -704,22 +695,19 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
 
     def update_model(model_selection, state):
         state["model"] = model_selection
-        print(f"Model updated to: {state['model']}")
 
         if model_selection == "claude-3-5-sonnet-20241022":
             provider_choices = [
                 option.value for option in APIProvider if option.value != "openai"
             ]
-        elif model_selection in set(
-            [
+        elif model_selection in {
                 "omniparser + gpt-4o",
                 "omniparser + o1",
                 "omniparser + o3-mini",
                 "omniparser + gpt-4o-orchestrated",
                 "omniparser + o1-orchestrated",
                 "omniparser + o3-mini-orchestrated",
-            ]
-        ):
+            }:
             provider_choices = ["openai"]
         elif model_selection == "omniparser + R1":
             provider_choices = ["groq"]
@@ -743,12 +731,12 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
             interactive=provider_interactive,
         )
         api_key_update = gr.update(
-            placeholder=api_key_placeholder, value=state["api_key"]
+            placeholder=api_key_placeholder, value=state["api_key"],
         )
 
         return provider_update, api_key_update
 
-    def update_only_n_images(only_n_images_value, state):
+    def update_only_n_images(only_n_images_value, state) -> None:
         state["only_n_most_recent_images"] = only_n_images_value
 
     def update_provider(provider_value, state):
@@ -757,12 +745,11 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
         state["api_key"] = state.get(f"{provider_value}_api_key", "")
 
         # Calls to update other components UI
-        api_key_update = gr.update(
-            placeholder=f"{provider_value.title()} API Key", value=state["api_key"]
+        return gr.update(
+            placeholder=f"{provider_value.title()} API Key", value=state["api_key"],
         )
-        return api_key_update
 
-    def update_api_key(api_key_value, state):
+    def update_api_key(api_key_value, state) -> None:
         state["api_key"] = api_key_value
         state[f'{state["provider"]}_api_key'] = api_key_value
 
@@ -775,7 +762,7 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
         return state["chatbot_messages"]
 
     def view_file(file_path, view_mode):
-        """Generate HTML to view the selected file if in File Viewer mode"""
+        """Generate HTML to view the selected file if in File Viewer mode."""
         if view_mode == "File Viewer" and file_path:
             return get_file_viewer_html(file_path)
         elif view_mode == "OmniTool Computer":
@@ -784,7 +771,7 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
             return display_area.value  # Keep current display
 
     def update_view_file_dropdown(uploaded_files):
-        """Update the view file dropdown when uploaded files change"""
+        """Update the view file dropdown when uploaded files change."""
         if not uploaded_files:
             return gr.update(choices=[])
 
@@ -792,12 +779,12 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
         return gr.update(choices=file_choices)
 
     def reset_view():
-        """Reset the view to the VNC viewer"""
+        """Reset the view to the VNC viewer."""
         return get_file_viewer_html()
 
     model.change(fn=update_model, inputs=[model, state], outputs=[provider, api_key])
     only_n_images.change(
-        fn=update_only_n_images, inputs=[only_n_images, state], outputs=None
+        fn=update_only_n_images, inputs=[only_n_images, state], outputs=None,
     )
     provider.change(fn=update_provider, inputs=[provider, state], outputs=api_key)
     api_key.change(fn=update_api_key, inputs=[api_key, state], outputs=None)
@@ -805,16 +792,16 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
 
     # File upload event handlers
     upload_button.click(
-        fn=handle_file_upload, inputs=[file_upload, state], outputs=[view_file_dropdown]
+        fn=handle_file_upload, inputs=[file_upload, state], outputs=[view_file_dropdown],
     )
 
     # File viewing handlers
     view_file_dropdown.change(
-        fn=view_file, inputs=[view_file_dropdown, view_toggle], outputs=[display_area]
+        fn=view_file, inputs=[view_file_dropdown, view_toggle], outputs=[display_area],
     )
 
     submit_button.click(
-        process_input, [chat_input, state], [chatbot, view_file_dropdown]
+        process_input, [chat_input, state], [chatbot, view_file_dropdown],
     )
     stop_button.click(stop_app, [state], None)
 
@@ -842,7 +829,7 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
                 }
             }
         }, 5000);
-        
+
         // Return a cleanup function
         return () => clearInterval(refreshInterval);
     }

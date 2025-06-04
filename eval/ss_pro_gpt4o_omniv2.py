@@ -1,13 +1,12 @@
-import os
-import re
 import ast
 import base64
+import os
+import re
 from io import BytesIO
-from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 
 import openai
 from openai import BadRequestError
+from PIL import Image
 
 model_name = "gpt-4o-2024-05-13"
 OPENAI_KEY = os.environ.get("OPENAI_API_KEY")
@@ -19,15 +18,13 @@ def convert_pil_image_to_base64(image):
     return base64.b64encode(buffered.getvalue()).decode()
 
 
+import torch
 from models.utils import (
-    get_som_labeled_img,
     check_ocr_box,
     get_caption_model_processor,
+    get_som_labeled_img,
     get_yolo_model,
 )
-import torch
-from ultralytics import YOLO
-from PIL import Image
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 SOM_MODEL_PATH = "..."
@@ -35,13 +32,11 @@ CAPTION_MODEL_PATH = "..."
 som_model = get_yolo_model(SOM_MODEL_PATH)
 
 som_model.to(device)
-print("model to {}".format(device))
 
 # two choices for caption model: fine-tuned blip2 or florence2
-import importlib
 
 caption_model_processor = get_caption_model_processor(
-    model_name="florence2", model_name_or_path="CAPTION_MODEL_PATH", device=device
+    model_name="florence2", model_name_or_path="CAPTION_MODEL_PATH", device=device,
 )
 
 
@@ -106,9 +101,9 @@ def reformat_messages(parsed_content_list):
     return screen_info
 
 
-PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT = """Please generate the next move according to the UI screenshot and task instruction. You will be presented with a screenshot image. Also you will be given each bounding box's description in a list. To complete the task, You should choose a related bbox to click based on the bbox descriptions. 
-Task instruction: {}. 
-Here is the list of all detected bounding boxes by IDs and their descriptions: {}. Keep in mind the description for Text Boxes are likely more accurate than the description for Icon Boxes. 
+PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT = """Please generate the next move according to the UI screenshot and task instruction. You will be presented with a screenshot image. Also you will be given each bounding box's description in a list. To complete the task, You should choose a related bbox to click based on the bbox descriptions.
+Task instruction: {}.
+Here is the list of all detected bounding boxes by IDs and their descriptions: {}. Keep in mind the description for Text Boxes are likely more accurate than the description for Icon Boxes.
 Requirement: 1. You should first give a reasonable description of the current screenshot, and give a short analysis of how can the user task be achieved. 2. Then make an educated guess of bbox id to click in order to complete the task based on the bounding boxes descriptions. 3. Your answer should follow the following format: {{"Analysis": xxx, "Click BBox ID": "y"}}. Do not include any other info. Some examples: {}. The task is to {}. Retrieve the bbox id where its description matches the task instruction. Now start your answer:"""
 
 # PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT_v1 = "The instruction is to {}. \nHere is the list of all detected bounding boxes by IDs and their descriptions: {}. \nKeep in mind the description for Text Boxes are likely more accurate than the description for Icon Boxes. \n Requirement: 1. You should first give a reasonable description of the current screenshot, and give a step by step analysis of how can the user task be achieved. 2. Then make an educated guess of bbox id to click in order to complete the task using both the visual information from the screenshot image and the bounding boxes descriptions. 3. Your answer should follow the following format: {{'Analysis': 'xxx', 'Click BBox ID': 'y'}}. Please do not include any other info."
@@ -119,17 +114,11 @@ FEWSHOT_EXAMPLE = """Example 1: Task instruction: Next page. \n{"Analysis": "Bas
 Example 2: Task instruction: Search on google. \n{"Analysis": "Based on the screenshot and icon descriptions, I should click on the 'Search' box, which is labeled with box ID y in the bounding box list", "Click BBox ID": "y"}"""
 
 
-from azure.identity import (
-    AzureCliCredential,
-    DefaultAzureCredential,
-    get_bearer_token_provider,
-)
-from openai import AzureOpenAI
-from models.utils import get_pred_phi3v, extract_dict_from_text, get_phi3v_model_dict
+from models.utils import extract_dict_from_text, get_phi3v_model_dict, get_pred_phi3v
 
 
 class GPT4XModel:
-    def __init__(self, model_name="gpt-4o-2024-05-13", use_managed_identity=False):
+    def __init__(self, model_name="gpt-4o-2024-05-13", use_managed_identity=False) -> None:
         self.client = openai.OpenAI(
             api_key=OPENAI_KEY,
         )
@@ -137,28 +126,28 @@ class GPT4XModel:
         if model_name == "phi35v":
             self.model_dict = get_phi3v_model_dict()
 
-    def load_model(self):
+    def load_model(self) -> None:
         pass
 
-    def set_generation_config(self, **kwargs):
+    def set_generation_config(self, **kwargs) -> None:
         self.override_generation_config.update(kwargs)
 
     def ground_only_positive_phi35v(self, instruction, image):
         if isinstance(image, str):
             image_path = image
             assert os.path.exists(image_path) and os.path.isfile(
-                image_path
+                image_path,
             ), "Invalid input image path."
             image = Image.open(image_path).convert("RGB")
         assert isinstance(image, Image.Image), "Invalid input image."
 
         base64_image = convert_pil_image_to_base64(image)
         dino_labled_img, label_coordinates, parsed_content_list = omniparser_parse(
-            image, image_path
+            image, image_path,
         )
         screen_info = reformat_messages(parsed_content_list)
         prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT.format(
-            instruction, screen_info, FEWSHOT_EXAMPLE, instruction
+            instruction, screen_info, FEWSHOT_EXAMPLE, instruction,
         )
         # prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT_v1.format(instruction, screen_info)
 
@@ -171,7 +160,7 @@ class GPT4XModel:
             model_dict=self.model_dict,
         )
 
-        result_dict = {
+        return {
             "result": "positive",
             "bbox": bbox,
             "point": click_point,
@@ -180,25 +169,24 @@ class GPT4XModel:
             "screen_info": screen_info,
         }
 
-        return result_dict
 
     def ground_only_positive(self, instruction, image):
         if isinstance(image, str):
             image_path = image
             assert os.path.exists(image_path) and os.path.isfile(
-                image_path
+                image_path,
             ), "Invalid input image path."
             image = Image.open(image_path).convert("RGB")
         assert isinstance(image, Image.Image), "Invalid input image."
 
         base64_image = convert_pil_image_to_base64(image)
         dino_labled_img, label_coordinates, parsed_content_list = omniparser_parse(
-            image, image_path
+            image, image_path,
         )
         screen_info = reformat_messages(parsed_content_list)
         # prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT.format(screen_info, FEWSHOT_EXAMPLE, instruction)
         prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT_v1.format(
-            instruction, screen_info
+            instruction, screen_info,
         )
 
         try:
@@ -211,9 +199,9 @@ class GPT4XModel:
                             # {"type": "text", "text": "You are an expert in using electronic devices and interacting with graphic interfaces. You should not call any external tools."}
                             {
                                 "type": "text",
-                                "text": """You are an expert at completing instructions on GUI screens. 
+                                "text": """You are an expert at completing instructions on GUI screens.
                You will be presented with two images. The first is the original screenshot. The second is the same screenshot with some numeric tags. You will also be provided with some descriptions of the bbox, and your task is to choose the numeric bbox idx you want to click in order to complete the user instruction.""",
-                            }
+                            },
                         ],
                     },
                     {
@@ -239,15 +227,12 @@ class GPT4XModel:
                 max_tokens=2048,
             )
             response_text = response.choices[0].message.content
-        except BadRequestError as e:
-            print("OpenAI BadRequestError:", e)
+        except BadRequestError:
             return None
 
         # Extract bounding box
         # print("------")
         # print(grounding_prompt)
-        print("------")
-        print(response_text)
         # print("------")
         # Try getting groundings
         # bbox = extract_first_bounding_box(response_text)
@@ -256,7 +241,7 @@ class GPT4XModel:
         # if not click_point and bbox:
         #     click_point = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
         response_text = response_text.replace("```json", "").replace(
-            "```", ""
+            "```", "",
         )  # TODO: fix this
 
         try:
@@ -266,13 +251,12 @@ class GPT4XModel:
             bbox = label_coordinates[str(icon_id)]
             click_point = [bbox[0] + bbox[2] / 2, bbox[1] + bbox[3] / 2]
         except:
-            print("error parsing, use regex to parse!!!")
             response_text = extract_dict_from_text(response_text)
             icon_id = response_text["Click BBox ID"]
             bbox = label_coordinates[str(icon_id)]
             click_point = [bbox[0] + bbox[2] / 2, bbox[1] + bbox[3] / 2]
 
-        result_dict = {
+        return {
             "result": "positive",
             "bbox": bbox,
             "point": click_point,
@@ -281,13 +265,12 @@ class GPT4XModel:
             "screen_info": screen_info,
         }
 
-        return result_dict
 
     def ground_allow_negative(self, instruction, image=None):
         if isinstance(image, str):
             image_path = image
             assert os.path.exists(image_path) and os.path.isfile(
-                image_path
+                image_path,
             ), "Invalid input image path."
             image = Image.open(image_path).convert("RGB")
         assert isinstance(image, Image.Image), "Invalid input image."
@@ -304,7 +287,7 @@ class GPT4XModel:
                             {
                                 "type": "text",
                                 "text": "You are an expert in using electronic devices and interacting with graphic interfaces. You should not call any external tools.",
-                            }
+                            },
                         ],
                     },
                     {
@@ -331,15 +314,12 @@ class GPT4XModel:
                 max_tokens=2048,
             )
             response_text = response.choices[0].message.content
-        except BadRequestError as e:
-            print("OpenAI BadRequestError:", e)
+        except BadRequestError:
             return {"result": "failed"}
 
         # Extract bounding box
         # print("------")
         # print(grounding_prompt)
-        print("------")
-        print(response_text)
         # print("------")
 
         if "not existent" in response_text.lower():
@@ -357,20 +337,19 @@ class GPT4XModel:
         if not click_point and bbox:
             click_point = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
 
-        result_dict = {
+        return {
             "result": "positive" if bbox or click_point else "negative",
             "bbox": bbox,
             "point": click_point,
             "raw_response": response_text,
         }
 
-        return result_dict
 
     def ground_with_uncertainty(self, instruction, image=None):
         if isinstance(image, str):
             image_path = image
             assert os.path.exists(image_path) and os.path.isfile(
-                image_path
+                image_path,
             ), "Invalid input image path."
             image = Image.open(image_path).convert("RGB")
         assert isinstance(image, Image.Image), "Invalid input image."
@@ -387,7 +366,7 @@ class GPT4XModel:
                             {
                                 "type": "text",
                                 "text": "You are an expert in using electronic devices and interacting with graphic interfaces. You should not call any external tools.",
-                            }
+                            },
                         ],
                     },
                     {
@@ -415,15 +394,12 @@ class GPT4XModel:
                 max_tokens=2048,
             )
             response_text = response.choices[0].message.content
-        except BadRequestError as e:
-            print("OpenAI BadRequestError:", e)
+        except BadRequestError:
             return {"result": "failed"}
 
         # Extract bounding box
         # print("------")
         # print(grounding_prompt)
-        print("------")
-        print(response_text)
         # print("------")
 
         if "not found" in response_text.lower():
@@ -441,14 +417,13 @@ class GPT4XModel:
         if not click_point and bbox:
             click_point = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
 
-        result_dict = {
+        return {
             "result": "positive",
             "bbox": bbox,
             "point": click_point,
             "raw_response": response_text,
         }
 
-        return result_dict
 
 
 def extract_first_bounding_box(text):
@@ -461,13 +436,12 @@ def extract_first_bounding_box(text):
 
     if match:
         # Capture the bounding box coordinates as floats
-        bbox = [
+        return [
             float(match.group(1)),
             float(match.group(2)),
             float(match.group(3)),
             float(match.group(4)),
         ]
-        return bbox
     return None
 
 
@@ -480,7 +454,6 @@ def extract_first_point(text):
     match = re.search(pattern, text, re.DOTALL)
 
     if match:
-        point = [float(match.group(1)), float(match.group(2))]
-        return point
+        return [float(match.group(1)), float(match.group(2))]
 
     return None

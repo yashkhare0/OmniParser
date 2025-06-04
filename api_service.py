@@ -12,7 +12,6 @@ sys.path.insert(0, "/opt/omniparser")
 
 from pathlib import Path
 
-import cv2  # type: ignore
 import numpy as np
 import torch  # type: ignore
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -61,7 +60,7 @@ caption_model_processor = None
 
 
 def get_yolo_model(model_path):
-    """Load YOLO model from path"""
+    """Load YOLO model from path."""
     try:
         from ultralytics import YOLO
 
@@ -74,13 +73,13 @@ def get_yolo_model(model_path):
 
 
 def get_caption_model_processor(model_name="florence2", model_name_or_path=None):
-    """Load caption model and processor"""
+    """Load caption model and processor."""
     try:
         if model_name == "florence2":
-            from transformers import AutoProcessor, AutoModelForCausalLM
+            from transformers import AutoModelForCausalLM, AutoProcessor
 
             processor = AutoProcessor.from_pretrained(
-                "microsoft/Florence-2-base", trust_remote_code=True
+                "microsoft/Florence-2-base", trust_remote_code=True,
             )
             if DEVICE == "cpu":
                 model = AutoModelForCausalLM.from_pretrained(
@@ -96,7 +95,7 @@ def get_caption_model_processor(model_name="florence2", model_name_or_path=None)
                 ).to(DEVICE)
 
             logger.info(
-                f"Florence2 model loaded successfully from {model_name_or_path}"
+                f"Florence2 model loaded successfully from {model_name_or_path}",
             )
             return {"model": model, "processor": processor, "model_type": "florence2"}
         else:
@@ -108,8 +107,8 @@ def get_caption_model_processor(model_name="florence2", model_name_or_path=None)
         return {"model_type": "rule_based"}
 
 
-def initialize_models():
-    """Initialize models on startup"""
+def initialize_models() -> None:
+    """Initialize models on startup."""
     global detect_model, caption_model_processor
 
     logger.info("Initializing models...")
@@ -129,7 +128,7 @@ def initialize_models():
         caption_model_processor = get_caption_model_processor("florence2", WEIGHTS_PATH)
     else:
         logger.warning(
-            f"Caption model not found at {WEIGHTS_PATH}, using rule-based captions"
+            f"Caption model not found at {WEIGHTS_PATH}, using rule-based captions",
         )
         caption_model_processor = {"model_type": "rule_based"}
 
@@ -239,7 +238,7 @@ async def parse_image(file: UploadFile = File(...)):
                     shape_desc = "rectangular"
 
                 # Simple position description
-                center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
+                _center_x, center_y = (x1 + x2) / 2, (y1 + y2) / 2
                 if center_y < 0.3:
                     pos_desc = "top"
                 elif center_y > 0.7:
@@ -273,7 +272,7 @@ async def parse_image(file: UploadFile = File(...)):
                     if model_type == "florence2":
                         prompt = "<CAPTION>"
                         inputs = processor(
-                            images=cropped_img, text=prompt, return_tensors="pt"
+                            images=cropped_img, text=prompt, return_tensors="pt",
                         ).to(DEVICE)
                         with torch.no_grad():
                             generated_ids = model.generate(
@@ -284,7 +283,7 @@ async def parse_image(file: UploadFile = File(...)):
                                 do_sample=False,
                             )
                         generated_text = processor.batch_decode(
-                            generated_ids, skip_special_tokens=True
+                            generated_ids, skip_special_tokens=True,
                         )[0]
                     else:
                         generated_text = f"object_{i}"
@@ -292,7 +291,7 @@ async def parse_image(file: UploadFile = File(...)):
                     captions.append(
                         generated_text.strip()
                         if generated_text.strip()
-                        else f"object_{i}"
+                        else f"object_{i}",
                     )
 
                 except Exception as e:
@@ -301,7 +300,7 @@ async def parse_image(file: UploadFile = File(...)):
 
     except Exception as e:
         logger.error(f"Error during inference: {e}")
-        raise HTTPException(status_code=500, detail=f"Inference failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Inference failed: {e!s}")
 
     # 6) Build response
     out = []
@@ -329,7 +328,7 @@ async def health():
 
 # ─── Startup event ─────────────────────────────────────────────────────────────
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     logger.info("Starting OmniParser API...")
     initialize_models()
     logger.info("OmniParser API startup complete")

@@ -1,26 +1,24 @@
-import json
-from collections.abc import Callable
-from typing import cast, Callable
-import uuid
-from PIL import Image, ImageDraw
 import base64
+import json
+import re
+import time
+import uuid
+from collections.abc import Callable
 from io import BytesIO
+from typing import Callable
 
+from agent.llm_utils.groqclient import run_groq_interleaved
+from agent.llm_utils.oaiclient import run_oai_interleaved
+from agent.llm_utils.utils import is_image_path
 from anthropic import APIResponse
-from anthropic.types import ToolResultBlockParam
 from anthropic.types.beta import (
     BetaMessage,
+    BetaMessageParam,
     BetaTextBlock,
     BetaToolUseBlock,
-    BetaMessageParam,
     BetaUsage,
 )
-
-from agent.llm_utils.oaiclient import run_oai_interleaved
-from agent.llm_utils.groqclient import run_groq_interleaved
-from agent.llm_utils.utils import is_image_path
-import time
-import re
+from PIL import Image, ImageDraw
 
 OUTPUT_DIR = "./tmp/outputs"
 
@@ -46,7 +44,7 @@ class VLMAgent:
         max_tokens: int = 4096,
         only_n_most_recent_images: int | None = None,
         print_usage: bool = True,
-    ):
+    ) -> None:
         if model == "omniparser + gpt-4o":
             self.model = "gpt-4o-2024-11-20"
         elif model == "omniparser + R1":
@@ -76,7 +74,7 @@ class VLMAgent:
 
     def __call__(self, messages: list, parsed_screen: list[str, list, dict]):
         self.step_count += 1
-        image_base64 = parsed_screen["original_screenshot_base64"]
+        parsed_screen["original_screenshot_base64"]
         latency_omniparser = parsed_screen["latency"]
         self.output_callback(f"-- Step {self.step_count}: --", sender="bot")
         screen_info = str(parsed_screen["screen_info"])
@@ -90,17 +88,17 @@ class VLMAgent:
         planner_messages = messages
         _remove_som_images(planner_messages)
         _maybe_filter_to_n_most_recent_images(
-            planner_messages, self.only_n_most_recent_images
+            planner_messages, self.only_n_most_recent_images,
         )
 
         if isinstance(planner_messages[-1], dict):
             if not isinstance(planner_messages[-1]["content"], list):
                 planner_messages[-1]["content"] = [planner_messages[-1]["content"]]
             planner_messages[-1]["content"].append(
-                f"{OUTPUT_DIR}/screenshot_{screenshot_uuid}.png"
+                f"{OUTPUT_DIR}/screenshot_{screenshot_uuid}.png",
             )
             planner_messages[-1]["content"].append(
-                f"{OUTPUT_DIR}/screenshot_som_{screenshot_uuid}.png"
+                f"{OUTPUT_DIR}/screenshot_som_{screenshot_uuid}.png",
             )
 
         start = time.time()
@@ -114,7 +112,6 @@ class VLMAgent:
                 provider_base_url="https://api.openai.com/v1",
                 temperature=0,
             )
-            print(f"oai token usage: {token_usage}")
             self.total_token_usage += token_usage
             if "gpt" in self.model:
                 self.total_cost += (
@@ -136,7 +133,6 @@ class VLMAgent:
                 api_key=self.api_key,
                 max_tokens=self.max_tokens,
             )
-            print(f"groq token usage: {token_usage}")
             self.total_token_usage += token_usage
             self.total_cost += token_usage * 0.99 / 1000000
         elif "qwen" in self.model:
@@ -149,7 +145,6 @@ class VLMAgent:
                 provider_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
                 temperature=0,
             )
-            print(f"qwen token usage: {token_usage}")
             self.total_token_usage += token_usage
             self.total_cost += (
                 token_usage * 2.2 / 1000000
@@ -162,12 +157,9 @@ class VLMAgent:
             sender="bot",
         )
 
-        print(f"{vlm_response}")
 
         if self.print_usage:
-            print(
-                f"Total token so far: {self.total_token_usage}. Total cost so far: $USD{self.total_cost:.5f}"
-            )
+            pass
 
         vlm_response_json = extract_data(vlm_response, "json")
         vlm_response_json = json.loads(vlm_response_json)
@@ -189,7 +181,7 @@ class VLMAgent:
                 x, y = vlm_response_json["box_centroid_coordinate"]
                 radius = 10
                 draw.ellipse(
-                    (x - radius, y - radius, x + radius, y + radius), fill="red"
+                    (x - radius, y - radius, x + radius, y + radius), fill="red",
                 )
                 draw.ellipse(
                     (x - radius * 3, y - radius * 3, x + radius * 3, y + radius * 3),
@@ -201,13 +193,12 @@ class VLMAgent:
                 buffered = BytesIO()
                 img_to_show.save(buffered, format="PNG")
                 img_to_show_base64 = base64.b64encode(buffered.getvalue()).decode(
-                    "utf-8"
+                    "utf-8",
                 )
             except:
-                print(f"Error parsing: {vlm_response_json}")
                 pass
         self.output_callback(
-            f'<img src="data:image/png;base64,{img_to_show_base64}">', sender="bot"
+            f'<img src="data:image/png;base64,{img_to_show_base64}">', sender="bot",
         )
         self.output_callback(
             f"<details>"
@@ -238,7 +229,7 @@ class VLMAgent:
             response_content.append(move_cursor_block)
 
         if vlm_response_json["Next Action"] == "None":
-            print("Task paused/completed.")
+            pass
         elif vlm_response_json["Next Action"] == "type":
             sim_content_block = BetaToolUseBlock(
                 id=f"toolu_{uuid.uuid4()}",
@@ -269,7 +260,7 @@ class VLMAgent:
         )
         return response_message, vlm_response_json
 
-    def _api_response_callback(self, response: APIResponse):
+    def _api_response_callback(self, response: APIResponse) -> None:
         self.api_response_callback(response)
 
     def _get_system_prompt(self, screen_info: str = ""):
@@ -290,7 +281,7 @@ Your available "Next Action" only include:
 - double_click: move mouse to box id and double clicks.
 - hover: move mouse to box id.
 - scroll_up: scrolls the screen up to view previous content.
-- scroll_down: scrolls the screen down, when the desired button is not visible, or you need to see more content. 
+- scroll_down: scrolls the screen down, when the desired button is not visible, or you need to see more content.
 - wait: waits for 1 second for the device to load or respond.
 
 Based on the visual information from the screenshot image and the detected bounding boxes, please determine the next action, the Box ID you should operate on (if action is one of 'type', 'hover', 'scroll_up', 'scroll_down', 'wait', there should be no Box ID field), and the value (if the action is 'type') in order to complete the task.
@@ -299,7 +290,7 @@ Output format:
 ```json
 {{
     "Reasoning": str, # describe what is in the current screen, taking into account the history, then describe your step-by-step thoughts on how to achieve the task, choose one action from available actions at a time.
-    "Next Action": "action_type, action description" | "None" # one action at a time, describe it in short and precisely. 
+    "Next Action": "action_type, action description" | "None" # one action at a time, describe it in short and precisely.
     "Box ID": n,
     "value": "xxx" # only provide value field if the action is type, else don't include value key
 }}
@@ -307,7 +298,7 @@ Output format:
 
 One Example:
 ```json
-{{  
+{{
     "Reasoning": "The current screen shows google result of amazon, in previous action I have searched amazon on google. Then I need to click on the first search results to go to amazon.com.",
     "Next Action": "left_click",
     "Box ID": m
@@ -359,7 +350,7 @@ IMPORTANT NOTES:
         return main_section
 
 
-def _remove_som_images(messages):
+def _remove_som_images(messages) -> None:
     for msg in messages:
         msg_content = msg["content"]
         if isinstance(msg_content, list):
@@ -378,7 +369,7 @@ def _maybe_filter_to_n_most_recent_images(
     """
     With the assumption that images are screenshots that are of diminishing value as
     the conversation progresses, remove all but the final `images_to_keep` tool_result
-    images in place
+    images in place.
     """
     if images_to_keep is None:
         return messages
@@ -412,12 +403,12 @@ def _maybe_filter_to_n_most_recent_images(
                         if (
                             isinstance(tool_result_entry, dict)
                             and tool_result_entry.get("type") == "image"
-                        ):
-                            if images_to_remove > 0:
-                                images_to_remove -= 1
-                                continue
+                        ) and images_to_remove > 0:
+                            images_to_remove -= 1
+                            continue
                         new_tool_result_content.append(tool_result_entry)
                     cnt["content"] = new_tool_result_content
                 # Append fixed content to current message's content list
                 new_content.append(cnt)
             msg["content"] = new_content
+    return None

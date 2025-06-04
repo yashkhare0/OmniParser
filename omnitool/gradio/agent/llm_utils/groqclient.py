@@ -1,5 +1,7 @@
-from groq import Groq
 import os
+
+from groq import Groq
+
 from .utils import is_image_path
 
 
@@ -11,9 +13,7 @@ def run_groq_interleaved(
     max_tokens=256,
     temperature=0.6,
 ):
-    """
-    Run a chat completion through Groq's API, ignoring any images in the messages.
-    """
+    """Run a chat completion through Groq's API, ignoring any images in the messages."""
     api_key = api_key or os.environ.get("GROQ_API_KEY")
     if not api_key:
         raise ValueError("GROQ_API_KEY is not set")
@@ -64,6 +64,5 @@ def run_groq_interleaved(
 
         return final_answer, token_usage
     except Exception as e:
-        print(f"Error in interleaved Groq: {e}")
 
         return str(e), 0

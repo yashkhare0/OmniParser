@@ -1,14 +1,15 @@
-import os
-import logging
 import argparse
+import logging
+import os
 import shlex
 import subprocess
-from flask import Flask, request, jsonify, send_file
 import threading
 import traceback
-import pyautogui
-from PIL import Image
 from io import BytesIO
+
+import pyautogui
+from flask import Flask, jsonify, request, send_file
+from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -61,7 +62,7 @@ def execute_command():
                 stderr=subprocess.PIPE,
                 shell=shell,
                 text=True,
-                timeout=120,
+                timeout=120, check=False,
             )
             return jsonify(
                 {
@@ -69,7 +70,7 @@ def execute_command():
                     "output": result.stdout,
                     "error": result.stderr,
                     "returncode": result.returncode,
-                }
+                },
             )
         except Exception as e:
             logger.error("\n" + traceback.format_exc() + "\n")

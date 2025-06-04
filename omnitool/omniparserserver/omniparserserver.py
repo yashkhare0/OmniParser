@@ -1,14 +1,13 @@
-"""
-python -m omniparserserver --som_model_path ../../weights/icon_detect/model.pt --caption_model_name florence2 --caption_model_path ../../weights/icon_caption_florence --device cuda --BOX_TRESHOLD 0.05
-"""
+"""python -m omniparserserver --som_model_path ../../weights/icon_detect/model.pt --caption_model_name florence2 --caption_model_path ../../weights/icon_caption_florence --device cuda --BOX_TRESHOLD 0.05."""
 
-import sys
+import argparse
 import os
+import sys
 import time
+
+import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
-import argparse
-import uvicorn
 
 root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(root_dir)
@@ -36,15 +35,14 @@ def parse_arguments():
         help="Path to the caption model",
     )
     parser.add_argument(
-        "--device", type=str, default="cpu", help="Device to run the model"
+        "--device", type=str, default="cpu", help="Device to run the model",
     )
     parser.add_argument(
-        "--BOX_TRESHOLD", type=float, default=0.05, help="Threshold for box detection"
+        "--BOX_TRESHOLD", type=float, default=0.05, help="Threshold for box detection",
     )
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for the API")
     parser.add_argument("--port", type=int, default=8000, help="Port for the API")
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
 
 
 args = parse_arguments()
@@ -60,11 +58,9 @@ class ParseRequest(BaseModel):
 
 @app.post("/parse/")
 async def parse(parse_request: ParseRequest):
-    print("start parsing...")
     start = time.time()
     dino_labled_img, parsed_content_list = omniparser.parse(parse_request.base64_image)
     latency = time.time() - start
-    print("time:", latency)
     return {
         "som_image_base64": dino_labled_img,
         "parsed_content_list": parsed_content_list,

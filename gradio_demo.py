@@ -1,25 +1,20 @@
+import base64
+import io
 from typing import Optional
 
 import gradio as gr
-import numpy as np
 import torch
 from PIL import Image
-import io
-
-
-import base64, os
 from util.utils import (
     check_ocr_box,
-    get_yolo_model,
     get_caption_model_processor,
     get_som_labeled_img,
+    get_yolo_model,
 )
-import torch
-from PIL import Image
 
 yolo_model = get_yolo_model(model_path="weights/icon_detect/model.pt")
 caption_model_processor = get_caption_model_processor(
-    model_name="florence2", model_name_or_path="weights/icon_caption_florence"
+    model_name="florence2", model_name_or_path="weights/icon_caption_florence",
 )
 # caption_model_processor = get_caption_model_processor(model_name="blip2", model_name_or_path="weights/icon_caption_blip2")
 
@@ -31,7 +26,7 @@ MARKDOWN = """
     </a>
 </div>
 
-OmniParser is a screen parsing tool to convert general GUI screen to structured elements. 
+OmniParser is a screen parsing tool to convert general GUI screen to structured elements.
 """
 
 DEVICE = torch.device("cuda")
@@ -41,7 +36,7 @@ DEVICE = torch.device("cuda")
 # @torch.inference_mode()
 # @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
 def process(
-    image_input, box_threshold, iou_threshold, use_paddleocr, imgsz
+    image_input, box_threshold, iou_threshold, use_paddleocr, imgsz,
 ) -> Optional[Image.Image]:
 
     box_overlay_ratio = image_input.size[0] / 3200
@@ -75,9 +70,8 @@ def process(
         imgsz=imgsz,
     )
     image = Image.open(io.BytesIO(base64.b64decode(dino_labled_img)))
-    print("finish processing")
     parsed_content_list = "\n".join(
-        [f"icon {i}: " + str(v) for i, v in enumerate(parsed_content_list)]
+        [f"icon {i}: " + str(v) for i, v in enumerate(parsed_content_list)],
     )
     # parsed_content_list = str(parsed_content_list)
     return image, str(parsed_content_list)
@@ -90,11 +84,11 @@ with gr.Blocks() as demo:
             image_input_component = gr.Image(type="pil", label="Upload image")
             # set the threshold for removing the bounding boxes with low confidence, default is 0.05
             box_threshold_component = gr.Slider(
-                label="Box Threshold", minimum=0.01, maximum=1.0, step=0.01, value=0.05
+                label="Box Threshold", minimum=0.01, maximum=1.0, step=0.01, value=0.05,
             )
             # set the threshold for removing the bounding boxes with large overlap, default is 0.1
             iou_threshold_component = gr.Slider(
-                label="IOU Threshold", minimum=0.01, maximum=1.0, step=0.01, value=0.1
+                label="IOU Threshold", minimum=0.01, maximum=1.0, step=0.01, value=0.1,
             )
             use_paddleocr_component = gr.Checkbox(label="Use PaddleOCR", value=True)
             imgsz_component = gr.Slider(
@@ -108,7 +102,7 @@ with gr.Blocks() as demo:
         with gr.Column():
             image_output_component = gr.Image(type="pil", label="Image Output")
             text_output_component = gr.Textbox(
-                label="Parsed screen elements", placeholder="Text Output"
+                label="Parsed screen elements", placeholder="Text Output",
             )
 
     submit_button_component.click(

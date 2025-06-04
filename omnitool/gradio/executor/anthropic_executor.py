@@ -1,17 +1,19 @@
 import asyncio
-from typing import Any, Dict, cast
 from collections.abc import Callable
+from typing import Any, Dict, cast
+
+from anthropic.types import TextBlock
 from anthropic.types.beta import (
     BetaContentBlock,
     BetaContentBlockParam,
     BetaImageBlockParam,
     BetaMessage,
     BetaMessageParam,
+    BetaTextBlock,
     BetaTextBlockParam,
     BetaToolResultBlockParam,
+    BetaToolUseBlock,
 )
-from anthropic.types import TextBlock
-from anthropic.types.beta import BetaMessage, BetaTextBlock, BetaToolUseBlock
 from tools import ComputerTool, ToolCollection, ToolResult
 
 
@@ -20,7 +22,7 @@ class AnthropicExecutor:
         self,
         output_callback: Callable[[BetaContentBlockParam], None],
         tool_output_callback: Callable[[Any, str], None],
-    ):
+    ) -> None:
         self.tool_collection = ToolCollection(ComputerTool())
         self.output_callback = output_callback
         self.tool_output_callback = tool_output_callback
@@ -33,7 +35,7 @@ class AnthropicExecutor:
         if new_message not in messages:
             messages.append(new_message)
         else:
-            print("new_message already in messages, there are duplicates.")
+            pass
 
         tool_result_content: list[BetaToolResultBlockParam] = []
         for content_block in cast(list[BetaContentBlock], response.content):
@@ -45,13 +47,13 @@ class AnthropicExecutor:
                     self.tool_collection.run(
                         name=content_block.name,
                         tool_input=cast(dict[str, Any], content_block.input),
-                    )
+                    ),
                 )
 
                 self.output_callback(result, sender="bot")
 
                 tool_result_content.append(
-                    _make_api_tool_result(result, content_block.id)
+                    _make_api_tool_result(result, content_block.id),
                 )
                 # self.tool_output_callback(result, content_block.id)
 
@@ -62,7 +64,7 @@ class AnthropicExecutor:
             # display_messages = []
 
             # Send the messages to the gradio
-            for user_msg, bot_msg in display_messages:
+            for _user_msg, _bot_msg in display_messages:
                 # yield [user_msg, bot_msg], tool_result_content
                 yield [None, None], tool_result_content
 
@@ -85,7 +87,7 @@ def _message_display_callback(messages):
                     (
                         None,
                         f"Tool Use: {msg['content'][0].name}\nInput: {msg['content'][0].input}",
-                    )
+                    ),
                 )  # Bot message
             elif (
                 isinstance(msg["content"][0], Dict)
@@ -95,18 +97,17 @@ def _message_display_callback(messages):
                     (
                         None,
                         f'<img src="data:image/png;base64,{msg["content"][0]["content"][-1]["source"]["data"]}">',
-                    )
+                    ),
                 )  # Bot message
             else:
-                print(msg["content"][0])
-        except Exception as e:
-            print("error", e)
+                pass
+        except Exception:
             pass
     return display_messages
 
 
 def _make_api_tool_result(
-    result: ToolResult, tool_use_id: str
+    result: ToolResult, tool_use_id: str,
 ) -> BetaToolResultBlockParam:
     """Convert an agent ToolResult to an API ToolResultBlockParam."""
     tool_result_content: list[BetaTextBlockParam | BetaImageBlockParam] | str = []
@@ -120,7 +121,7 @@ def _make_api_tool_result(
                 {
                     "type": "text",
                     "text": _maybe_prepend_system_tool_result(result, result.output),
-                }
+                },
             )
         if result.base64_image:
             tool_result_content.append(
@@ -131,7 +132,7 @@ def _make_api_tool_result(
                         "media_type": "image/png",
                         "data": result.base64_image,
                     },
-                }
+                },
             )
     return {
         "type": "tool_result",
