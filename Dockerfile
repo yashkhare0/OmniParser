@@ -31,11 +31,11 @@ RUN apt-get -y update && apt-get install -y --no-install-recommends \
          curl && \
     rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /opt/program
+# Set working directory - different from GroundingDINO
+WORKDIR /opt/omniparser
 
 # Copy OmniParser files into the container
-COPY . /opt/program/
+COPY . /opt/omniparser/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -51,8 +51,8 @@ RUN pip install --no-cache-dir \
 RUN mkdir -p /data/logs /data/uploads /data/weights
 
 # Make scripts executable
-RUN chmod +x /opt/program/download.sh && \
-    chmod +x /opt/program/init.sh
+RUN chmod +x /opt/omniparser/download.sh && \
+    chmod +x /opt/omniparser/init.sh
 
 # Copy supervisor configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -60,12 +60,12 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 # Verify CUDA setup
 RUN python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda if torch.cuda.is_available() else 'N/A')"
 
-# Expose API port
-EXPOSE 8080
+# Expose API port - different from GroundingDINO
+EXPOSE 8081
 
-# Health check
+# Health check - use correct port
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/api/health || exit 1
+    CMD curl -f http://localhost:8081/api/health || exit 1
 
 # Start with supervisord
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

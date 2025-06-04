@@ -19,7 +19,7 @@ else
     echo "Downloading models..."
     
     # Download models using the download script
-    cd /opt/program
+    cd /opt/omniparser
     ./download.sh
     
     # Copy downloaded models to data directory

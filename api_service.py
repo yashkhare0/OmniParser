@@ -8,7 +8,7 @@ import uuid
 from typing import List
 
 # Add current directory to Python path for imports
-sys.path.insert(0, '/opt/program')
+sys.path.insert(0, "/opt/omniparser")
 
 import cv2  # type: ignore
 import numpy as np
