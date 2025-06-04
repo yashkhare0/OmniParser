@@ -10,6 +10,8 @@ from typing import List
 # Add current directory to Python path for imports
 sys.path.insert(0, "/opt/omniparser")
 
+from pathlib import Path
+
 import cv2  # type: ignore
 import numpy as np
 import torch  # type: ignore
@@ -20,7 +22,7 @@ from pydantic import BaseModel
 from starlette.middleware.cors import CORSMiddleware
 
 # ─── Configure logging ─────────────────────────────────────────────────────────
-os.makedirs("/data/logs", exist_ok=True)
+Path("/data/logs").mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
