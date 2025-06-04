@@ -36,7 +36,9 @@ som_model.to(device)
 # two choices for caption model: fine-tuned blip2 or florence2
 
 caption_model_processor = get_caption_model_processor(
-    model_name="florence2", model_name_or_path="CAPTION_MODEL_PATH", device=device,
+    model_name="florence2",
+    model_name_or_path="CAPTION_MODEL_PATH",
+    device=device,
 )
 
 
@@ -118,7 +120,9 @@ from models.utils import extract_dict_from_text, get_phi3v_model_dict, get_pred_
 
 
 class GPT4XModel:
-    def __init__(self, model_name="gpt-4o-2024-05-13", use_managed_identity=False) -> None:
+    def __init__(
+        self, model_name="gpt-4o-2024-05-13", use_managed_identity=False,
+    ) -> None:
         self.client = openai.OpenAI(
             api_key=OPENAI_KEY,
         )
@@ -143,11 +147,15 @@ class GPT4XModel:
 
         base64_image = convert_pil_image_to_base64(image)
         dino_labled_img, label_coordinates, parsed_content_list = omniparser_parse(
-            image, image_path,
+            image,
+            image_path,
         )
         screen_info = reformat_messages(parsed_content_list)
         prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT.format(
-            instruction, screen_info, FEWSHOT_EXAMPLE, instruction,
+            instruction,
+            screen_info,
+            FEWSHOT_EXAMPLE,
+            instruction,
         )
         # prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT_v1.format(instruction, screen_info)
 
@@ -169,7 +177,6 @@ class GPT4XModel:
             "screen_info": screen_info,
         }
 
-
     def ground_only_positive(self, instruction, image):
         if isinstance(image, str):
             image_path = image
@@ -181,12 +188,14 @@ class GPT4XModel:
 
         base64_image = convert_pil_image_to_base64(image)
         dino_labled_img, label_coordinates, parsed_content_list = omniparser_parse(
-            image, image_path,
+            image,
+            image_path,
         )
         screen_info = reformat_messages(parsed_content_list)
         # prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT.format(screen_info, FEWSHOT_EXAMPLE, instruction)
         prompt_origin = PROMPT_TEMPLATE_SEECLICK_PARSED_CONTENT_v1.format(
-            instruction, screen_info,
+            instruction,
+            screen_info,
         )
 
         try:
@@ -241,7 +250,8 @@ class GPT4XModel:
         # if not click_point and bbox:
         #     click_point = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
         response_text = response_text.replace("```json", "").replace(
-            "```", "",
+            "```",
+            "",
         )  # TODO: fix this
 
         try:
@@ -264,7 +274,6 @@ class GPT4XModel:
             "dino_labled_img": dino_labled_img,
             "screen_info": screen_info,
         }
-
 
     def ground_allow_negative(self, instruction, image=None):
         if isinstance(image, str):
@@ -344,7 +353,6 @@ class GPT4XModel:
             "raw_response": response_text,
         }
 
-
     def ground_with_uncertainty(self, instruction, image=None):
         if isinstance(image, str):
             image_path = image
@@ -423,7 +431,6 @@ class GPT4XModel:
             "point": click_point,
             "raw_response": response_text,
         }
-
 
 
 def extract_first_bounding_box(text):

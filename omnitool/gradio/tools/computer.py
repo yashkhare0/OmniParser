@@ -77,7 +77,9 @@ class ComputerTool(BaseAnthropicTool):
     @property
     def options(self) -> ComputerToolOptions:
         width, height = self.scale_coordinates(
-            ScalingSource.COMPUTER, self.width, self.height,
+            ScalingSource.COMPUTER,
+            self.width,
+            self.height,
         )
         return {
             "display_width_px": width,
@@ -126,7 +128,9 @@ class ComputerTool(BaseAnthropicTool):
 
             if self.is_scaling:
                 x, y = self.scale_coordinates(
-                    ScalingSource.API, coordinate[0], coordinate[1],
+                    ScalingSource.API,
+                    coordinate[0],
+                    coordinate[1],
                 )
             else:
                 x, y = coordinate
@@ -136,7 +140,6 @@ class ComputerTool(BaseAnthropicTool):
 
             # x += self.offset_x # TODO - check if this is needed
             # y += self.offset_y
-
 
             if action == "mouse_move":
                 self.send_to_vm(f"pyautogui.moveTo({x}, {y})")
@@ -270,7 +273,9 @@ class ComputerTool(BaseAnthropicTool):
             self.target_dimension = MAX_SCALING_TARGETS["WXGA"]
         width, height = self.target_dimension["width"], self.target_dimension["height"]
         screenshot, path = get_screenshot(
-            resize=True, target_width=width, target_height=height,
+            resize=True,
+            target_width=width,
+            target_height=height,
         )
         time.sleep(0.7)  # avoid async error as actions take time to complete
         return ToolResult(base64_image=base64.b64encode(path.read_bytes()).decode())

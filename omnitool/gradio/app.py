@@ -131,20 +131,26 @@ def save_to_storage(filename: str, data: str) -> None:
         pass
 
 
-def _api_response_callback(response: APIResponse[BetaMessage], response_state: dict) -> None:
+def _api_response_callback(
+    response: APIResponse[BetaMessage], response_state: dict,
+) -> None:
     response_id = datetime.now().isoformat()
     response_state[response_id] = response
 
 
-def _tool_output_callback(tool_output: ToolResult, tool_id: str, tool_state: dict) -> None:
+def _tool_output_callback(
+    tool_output: ToolResult, tool_id: str, tool_state: dict,
+) -> None:
     tool_state[tool_id] = tool_output
 
 
-def chatbot_output_callback(message, chatbot_state, hide_images=False, sender="bot") -> None:
+def chatbot_output_callback(
+    message, chatbot_state, hide_images=False, sender="bot",
+) -> None:
     def _render_message(
-        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult, hide_images=False,
+        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult,
+        hide_images=False,
     ):
-
 
         if isinstance(message, str):
             return message
@@ -252,7 +258,6 @@ def process_input(user_input, state):
         "chatbot_messages"
     ]  # Yield to update the chatbot UI with the user's message
 
-
     # Run sampling_loop_sync with the chatbot_output_callback
     for loop_msg in sampling_loop_sync(
         model=state["model"],
@@ -265,7 +270,8 @@ def process_input(user_input, state):
         ),
         tool_output_callback=partial(_tool_output_callback, tool_state=state["tools"]),
         api_response_callback=partial(
-            _api_response_callback, response_state=state["responses"],
+            _api_response_callback,
+            response_state=state["responses"],
         ),
         api_key=state["api_key"],
         only_n_most_recent_images=state["only_n_most_recent_images"],
@@ -411,13 +417,13 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
                 option.value for option in APIProvider if option.value != "openai"
             ]
         elif model_selection in {
-                "omniparser + gpt-4o",
-                "omniparser + o1",
-                "omniparser + o3-mini",
-                "omniparser + gpt-4o-orchestrated",
-                "omniparser + o1-orchestrated",
-                "omniparser + o3-mini-orchestrated",
-            }:
+            "omniparser + gpt-4o",
+            "omniparser + o1",
+            "omniparser + o3-mini",
+            "omniparser + gpt-4o-orchestrated",
+            "omniparser + o1-orchestrated",
+            "omniparser + o3-mini-orchestrated",
+        }:
             provider_choices = ["openai"]
         elif model_selection == "omniparser + R1":
             provider_choices = ["groq"]
@@ -441,7 +447,8 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
             interactive=provider_interactive,
         )
         api_key_update = gr.update(
-            placeholder=api_key_placeholder, value=state["api_key"],
+            placeholder=api_key_placeholder,
+            value=state["api_key"],
         )
 
         return provider_update, api_key_update
@@ -456,7 +463,8 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
 
         # Calls to update other components UI
         return gr.update(
-            placeholder=f"{provider_value.title()} API Key", value=state["api_key"],
+            placeholder=f"{provider_value.title()} API Key",
+            value=state["api_key"],
         )
 
     def update_api_key(api_key_value, state) -> None:
@@ -473,7 +481,9 @@ with gr.Blocks(theme=gr.themes.Default()) as demo:
 
     model.change(fn=update_model, inputs=[model, state], outputs=[provider, api_key])
     only_n_images.change(
-        fn=update_only_n_images, inputs=[only_n_images, state], outputs=None,
+        fn=update_only_n_images,
+        inputs=[only_n_images, state],
+        outputs=None,
     )
     provider.change(fn=update_provider, inputs=[provider, state], outputs=api_key)
     api_key.change(fn=update_api_key, inputs=[api_key, state], outputs=None)

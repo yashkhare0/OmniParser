@@ -81,21 +81,15 @@ class VLMOrchestratedAgent:
         print_usage: bool = True,
         save_folder: Optional[str] = None,
     ) -> None:
-        if (
-            model in ("omniparser + gpt-4o", "omniparser + gpt-4o-orchestrated")
-        ):
+        if model in ("omniparser + gpt-4o", "omniparser + gpt-4o-orchestrated"):
             self.model = "gpt-4o-2024-11-20"
         elif model in ("omniparser + R1", "omniparser + R1-orchestrated"):
             self.model = "deepseek-r1-distill-llama-70b"
-        elif (
-            model in ("omniparser + qwen2.5vl", "omniparser + qwen2.5vl-orchestrated")
-        ):
+        elif model in ("omniparser + qwen2.5vl", "omniparser + qwen2.5vl-orchestrated"):
             self.model = "qwen2.5-vl-72b-instruct"
         elif model in ("omniparser + o1", "omniparser + o1-orchestrated"):
             self.model = "o1"
-        elif (
-            model in ("omniparser + o3-mini", "omniparser + o3-mini-orchestrated")
-        ):
+        elif model in ("omniparser + o3-mini", "omniparser + o3-mini-orchestrated"):
             self.model = "o3-mini"
         else:
             raise ValueError(f"Model {model} not supported")
@@ -143,7 +137,8 @@ class VLMOrchestratedAgent:
         with open(f"{self.save_folder}/screenshot_{self.step_count}.png", "wb") as f:
             f.write(base64.b64decode(parsed_screen["original_screenshot_base64"]))
         with open(
-            f"{self.save_folder}/som_screenshot_{self.step_count}.png", "wb",
+            f"{self.save_folder}/som_screenshot_{self.step_count}.png",
+            "wb",
         ) as f:
             f.write(base64.b64decode(parsed_screen["som_image_base64"]))
 
@@ -159,7 +154,8 @@ class VLMOrchestratedAgent:
         planner_messages = messages
         _remove_som_images(planner_messages)
         _maybe_filter_to_n_most_recent_images(
-            planner_messages, self.only_n_most_recent_images,
+            planner_messages,
+            self.only_n_most_recent_images,
         )
 
         if isinstance(planner_messages[-1], dict):
@@ -229,7 +225,6 @@ class VLMOrchestratedAgent:
             f"<i>Step {self.step_count} | OmniParser: {latency_omniparser:.2f}s | LLM: {latency_vlm:.2f}s</i>",
         )
 
-
         if self.print_usage:
             pass
 
@@ -253,7 +248,8 @@ class VLMOrchestratedAgent:
                 x, y = vlm_response_json["box_centroid_coordinate"]
                 radius = 10
                 draw.ellipse(
-                    (x - radius, y - radius, x + radius, y + radius), fill="red",
+                    (x - radius, y - radius, x + radius, y + radius),
+                    fill="red",
                 )
                 draw.ellipse(
                     (x - radius * 3, y - radius * 3, x + radius * 3, y + radius * 3),

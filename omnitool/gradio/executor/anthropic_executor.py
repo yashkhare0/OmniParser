@@ -107,7 +107,8 @@ def _message_display_callback(messages):
 
 
 def _make_api_tool_result(
-    result: ToolResult, tool_use_id: str,
+    result: ToolResult,
+    tool_use_id: str,
 ) -> BetaToolResultBlockParam:
     """Convert an agent ToolResult to an API ToolResultBlockParam."""
     tool_result_content: list[BetaTextBlockParam | BetaImageBlockParam] | str = []

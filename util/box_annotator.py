@@ -207,7 +207,15 @@ def IoU(box1, box2, return_max=True):
 
 
 def get_optimal_label_pos(
-    text_padding, text_width, text_height, x1, y1, x2, y2, detections, image_size,
+    text_padding,
+    text_width,
+    text_height,
+    x1,
+    y1,
+    x2,
+    y2,
+    detections,
+    image_size,
 ):
     """Check overlap of text and background detection box, and get_optimal_label_pos,
     pos: str, position of the text, must be one of 'top left', 'top right', 'outer left', 'outer right' TODO: if all are overlapping, return the last one, i.e. outer right

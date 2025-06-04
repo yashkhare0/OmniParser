@@ -14,7 +14,8 @@ from util.utils import (
 
 yolo_model = get_yolo_model(model_path="weights/icon_detect/model.pt")
 caption_model_processor = get_caption_model_processor(
-    model_name="florence2", model_name_or_path="weights/icon_caption_florence",
+    model_name="florence2",
+    model_name_or_path="weights/icon_caption_florence",
 )
 # caption_model_processor = get_caption_model_processor(model_name="blip2", model_name_or_path="weights/icon_caption_blip2")
 
@@ -36,7 +37,11 @@ DEVICE = torch.device("cuda")
 # @torch.inference_mode()
 # @torch.autocast(device_type="cuda", dtype=torch.bfloat16)
 def process(
-    image_input, box_threshold, iou_threshold, use_paddleocr, imgsz,
+    image_input,
+    box_threshold,
+    iou_threshold,
+    use_paddleocr,
+    imgsz,
 ) -> Optional[Image.Image]:
 
     box_overlay_ratio = image_input.size[0] / 3200
@@ -84,11 +89,19 @@ with gr.Blocks() as demo:
             image_input_component = gr.Image(type="pil", label="Upload image")
             # set the threshold for removing the bounding boxes with low confidence, default is 0.05
             box_threshold_component = gr.Slider(
-                label="Box Threshold", minimum=0.01, maximum=1.0, step=0.01, value=0.05,
+                label="Box Threshold",
+                minimum=0.01,
+                maximum=1.0,
+                step=0.01,
+                value=0.05,
             )
             # set the threshold for removing the bounding boxes with large overlap, default is 0.1
             iou_threshold_component = gr.Slider(
-                label="IOU Threshold", minimum=0.01, maximum=1.0, step=0.01, value=0.1,
+                label="IOU Threshold",
+                minimum=0.01,
+                maximum=1.0,
+                step=0.01,
+                value=0.1,
             )
             use_paddleocr_component = gr.Checkbox(label="Use PaddleOCR", value=True)
             imgsz_component = gr.Slider(
@@ -102,7 +115,8 @@ with gr.Blocks() as demo:
         with gr.Column():
             image_output_component = gr.Image(type="pil", label="Image Output")
             text_output_component = gr.Textbox(
-                label="Parsed screen elements", placeholder="Text Output",
+                label="Parsed screen elements",
+                placeholder="Text Output",
             )
 
     submit_button_component.click(

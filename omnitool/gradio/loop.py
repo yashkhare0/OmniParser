@@ -60,12 +60,12 @@ def sampling_loop_sync(
             only_n_most_recent_images=only_n_most_recent_images,
         )
     elif model in {
-            "omniparser + gpt-4o",
-            "omniparser + o1",
-            "omniparser + o3-mini",
-            "omniparser + R1",
-            "omniparser + qwen2.5vl",
-        }:
+        "omniparser + gpt-4o",
+        "omniparser + o1",
+        "omniparser + o3-mini",
+        "omniparser + R1",
+        "omniparser + qwen2.5vl",
+    }:
         actor = VLMAgent(
             model=model,
             provider=provider,
@@ -76,12 +76,12 @@ def sampling_loop_sync(
             only_n_most_recent_images=only_n_most_recent_images,
         )
     elif model in {
-            "omniparser + gpt-4o-orchestrated",
-            "omniparser + o1-orchestrated",
-            "omniparser + o3-mini-orchestrated",
-            "omniparser + R1-orchestrated",
-            "omniparser + qwen2.5vl-orchestrated",
-        }:
+        "omniparser + gpt-4o-orchestrated",
+        "omniparser + o1-orchestrated",
+        "omniparser + o3-mini-orchestrated",
+        "omniparser + R1-orchestrated",
+        "omniparser + qwen2.5vl-orchestrated",
+    }:
         actor = VLMOrchestratedAgent(
             model=model,
             provider=provider,
@@ -100,7 +100,6 @@ def sampling_loop_sync(
     )
 
     tool_result_content = None
-
 
     if model == "claude-3-5-sonnet-20241022":  # Anthropic loop
         while True:
@@ -125,21 +124,22 @@ def sampling_loop_sync(
             messages.append({"content": tool_result_content, "role": "user"})
 
     elif model in {
-            "omniparser + gpt-4o",
-            "omniparser + o1",
-            "omniparser + o3-mini",
-            "omniparser + R1",
-            "omniparser + qwen2.5vl",
-            "omniparser + gpt-4o-orchestrated",
-            "omniparser + o1-orchestrated",
-            "omniparser + o3-mini-orchestrated",
-            "omniparser + R1-orchestrated",
-            "omniparser + qwen2.5vl-orchestrated",
-        }:
+        "omniparser + gpt-4o",
+        "omniparser + o1",
+        "omniparser + o3-mini",
+        "omniparser + R1",
+        "omniparser + qwen2.5vl",
+        "omniparser + gpt-4o-orchestrated",
+        "omniparser + o1-orchestrated",
+        "omniparser + o3-mini-orchestrated",
+        "omniparser + R1-orchestrated",
+        "omniparser + qwen2.5vl-orchestrated",
+    }:
         while True:
             parsed_screen = omniparser_client()
             tools_use_needed, vlm_response_json = actor(
-                messages=messages, parsed_screen=parsed_screen,
+                messages=messages,
+                parsed_screen=parsed_screen,
             )
 
             for message, tool_result_content in executor(tools_use_needed, messages):

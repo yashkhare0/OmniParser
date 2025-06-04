@@ -69,7 +69,8 @@ class AnthropicActor:
         """Generate a response given history messages."""
         if self.only_n_most_recent_images:
             _maybe_filter_to_n_most_recent_images(
-                messages, self.only_n_most_recent_images,
+                messages,
+                self.only_n_most_recent_images,
             )
 
         # Call the API synchronously
@@ -141,7 +142,11 @@ def _maybe_filter_to_n_most_recent_images(
         if isinstance(tool_result.get("content"), list):
             new_content = []
             for content in tool_result.get("content", []):
-                if isinstance(content, dict) and content.get("type") == "image" and images_to_remove > 0:
+                if (
+                    isinstance(content, dict)
+                    and content.get("type") == "image"
+                    and images_to_remove > 0
+                ):
                     images_to_remove -= 1
                     continue
                 new_content.append(content)

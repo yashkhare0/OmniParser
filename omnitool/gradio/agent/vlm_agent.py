@@ -88,7 +88,8 @@ class VLMAgent:
         planner_messages = messages
         _remove_som_images(planner_messages)
         _maybe_filter_to_n_most_recent_images(
-            planner_messages, self.only_n_most_recent_images,
+            planner_messages,
+            self.only_n_most_recent_images,
         )
 
         if isinstance(planner_messages[-1], dict):
@@ -157,7 +158,6 @@ class VLMAgent:
             sender="bot",
         )
 
-
         if self.print_usage:
             pass
 
@@ -181,7 +181,8 @@ class VLMAgent:
                 x, y = vlm_response_json["box_centroid_coordinate"]
                 radius = 10
                 draw.ellipse(
-                    (x - radius, y - radius, x + radius, y + radius), fill="red",
+                    (x - radius, y - radius, x + radius, y + radius),
+                    fill="red",
                 )
                 draw.ellipse(
                     (x - radius * 3, y - radius * 3, x + radius * 3, y + radius * 3),
@@ -198,7 +199,8 @@ class VLMAgent:
             except:
                 pass
         self.output_callback(
-            f'<img src="data:image/png;base64,{img_to_show_base64}">', sender="bot",
+            f'<img src="data:image/png;base64,{img_to_show_base64}">',
+            sender="bot",
         )
         self.output_callback(
             f"<details>"

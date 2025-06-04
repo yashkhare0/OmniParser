@@ -35,10 +35,16 @@ def parse_arguments():
         help="Path to the caption model",
     )
     parser.add_argument(
-        "--device", type=str, default="cpu", help="Device to run the model",
+        "--device",
+        type=str,
+        default="cpu",
+        help="Device to run the model",
     )
     parser.add_argument(
-        "--BOX_TRESHOLD", type=float, default=0.05, help="Threshold for box detection",
+        "--BOX_TRESHOLD",
+        type=float,
+        default=0.05,
+        help="Threshold for box detection",
     )
     parser.add_argument("--host", type=str, default="0.0.0.0", help="Host for the API")
     parser.add_argument("--port", type=int, default=8000, help="Port for the API")

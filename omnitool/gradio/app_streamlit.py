@@ -129,7 +129,8 @@ def _tool_output_callback(tool_output: ToolResult, tool_id: str) -> None:
 
 def chatbot_output_callback(message, hide_images=False) -> None:
     def _render_message(
-        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult, hide_images=False,
+        message: str | BetaTextBlock | BetaToolUseBlock | ToolResult,
+        hide_images=False,
     ):
         if isinstance(message, str):
             return message
@@ -285,7 +286,9 @@ def main() -> None:
 
         # API settings
         api_key = st.text_input(
-            "API Key", value=st.session_state.api_key, type="password",
+            "API Key",
+            value=st.session_state.api_key,
+            type="password",
         )
         st.session_state.api_key = api_key
 
@@ -299,7 +302,9 @@ def main() -> None:
             file_options.extend([Path(f).name for f in st.session_state.uploaded_files])
 
         selected_file = st.selectbox(
-            "View File", options=file_options, format_func=lambda x: x,
+            "View File",
+            options=file_options,
+            format_func=lambda x: x,
         )
         st.session_state.selected_file = selected_file
 
@@ -316,7 +321,9 @@ def main() -> None:
             st.markdown("### Chat")
         with col_header_2:
             share_button = st.button(
-                "📤 Share", key="share_btn", help="Share conversation",
+                "📤 Share",
+                key="share_btn",
+                help="Share conversation",
             )
             # Apply custom styling with HTML
             st.markdown(
@@ -365,7 +372,8 @@ def main() -> None:
                     st.markdown(f"**You:** {message['content']}")
                 else:
                     st.markdown(
-                        f"**Assistant:** {message['content']}", unsafe_allow_html=True,
+                        f"**Assistant:** {message['content']}",
+                        unsafe_allow_html=True,
                     )
 
         # Chat input and buttons
@@ -432,7 +440,9 @@ def main() -> None:
         # File upload area (hidden by default, shown when upload button is clicked)
         if upload_button:
             uploaded_files = st.file_uploader(
-                "Upload Files", accept_multiple_files=True, label_visibility="collapsed",
+                "Upload Files",
+                accept_multiple_files=True,
+                label_visibility="collapsed",
             )
             if uploaded_files:
                 handle_file_upload(uploaded_files)
@@ -486,8 +496,7 @@ def main() -> None:
             viewer_html = get_file_viewer_html(windows_host_url=args.windows_host_url)
             st.components.v1.html(viewer_html, height=600, scrolling=True)
         elif (
-            st.session_state.selected_file
-            and st.session_state.selected_file != "None"
+            st.session_state.selected_file and st.session_state.selected_file != "None"
         ):
             file_path = next(
                 (
@@ -512,7 +521,8 @@ def main() -> None:
             st.write("Available Files:", st.session_state.uploaded_files)
             if view_mode == "File Viewer" and st.session_state.selected_file != "None":
                 st.write(
-                    "File Path:", file_path if "file_path" in locals() else "Not found",
+                    "File Path:",
+                    file_path if "file_path" in locals() else "Not found",
                 )
 
 

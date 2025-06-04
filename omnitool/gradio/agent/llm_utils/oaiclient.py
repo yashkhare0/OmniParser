@@ -59,7 +59,9 @@ def run_oai_interleaved(
         payload["max_tokens"] = max_tokens
 
     response = requests.post(
-        f"{provider_base_url}/chat/completions", headers=headers, json=payload,
+        f"{provider_base_url}/chat/completions",
+        headers=headers,
+        json=payload,
     )
 
     try:

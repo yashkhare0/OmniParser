@@ -79,7 +79,8 @@ def get_caption_model_processor(model_name="florence2", model_name_or_path=None)
             from transformers import AutoModelForCausalLM, AutoProcessor
 
             processor = AutoProcessor.from_pretrained(
-                "microsoft/Florence-2-base", trust_remote_code=True,
+                "microsoft/Florence-2-base",
+                trust_remote_code=True,
             )
             if DEVICE == "cpu":
                 model = AutoModelForCausalLM.from_pretrained(
@@ -272,7 +273,9 @@ async def parse_image(file: UploadFile = File(...)):
                     if model_type == "florence2":
                         prompt = "<CAPTION>"
                         inputs = processor(
-                            images=cropped_img, text=prompt, return_tensors="pt",
+                            images=cropped_img,
+                            text=prompt,
+                            return_tensors="pt",
                         ).to(DEVICE)
                         with torch.no_grad():
                             generated_ids = model.generate(
@@ -283,15 +286,18 @@ async def parse_image(file: UploadFile = File(...)):
                                 do_sample=False,
                             )
                         generated_text = processor.batch_decode(
-                            generated_ids, skip_special_tokens=True,
+                            generated_ids,
+                            skip_special_tokens=True,
                         )[0]
                     else:
                         generated_text = f"object_{i}"
 
                     captions.append(
-                        generated_text.strip()
-                        if generated_text.strip()
-                        else f"object_{i}",
+                        (
+                            generated_text.strip()
+                            if generated_text.strip()
+                            else f"object_{i}"
+                        ),
                     )
 
                 except Exception as e:

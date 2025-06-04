@@ -62,7 +62,8 @@ def execute_command():
                 stderr=subprocess.PIPE,
                 shell=shell,
                 text=True,
-                timeout=120, check=False,
+                timeout=120,
+                check=False,
             )
             return jsonify(
                 {

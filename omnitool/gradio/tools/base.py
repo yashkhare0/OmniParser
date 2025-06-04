@@ -34,7 +34,9 @@ class ToolResult:
 
     def __add__(self, other: "ToolResult"):
         def combine_fields(
-            field: str | None, other_field: str | None, concatenate: bool = True,
+            field: str | None,
+            other_field: str | None,
+            concatenate: bool = True,
         ):
             if field and other_field:
                 if concatenate:

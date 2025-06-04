@@ -11,7 +11,9 @@ OUTPUT_DIR = "./tmp/outputs"
 
 
 def get_screenshot(
-    resize: bool = False, target_width: int = 1920, target_height: int = 1080,
+    resize: bool = False,
+    target_width: int = 1920,
+    target_height: int = 1080,
 ):
     """Capture screenshot by requesting from HTTP endpoint - returns native resolution unless resized."""
     output_dir = Path(OUTPUT_DIR)
