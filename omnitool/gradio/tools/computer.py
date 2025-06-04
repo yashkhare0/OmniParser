@@ -29,7 +29,7 @@ Action = Literal[
     "screenshot",
     "cursor_position",
     "hover",
-    "wait"
+    "wait",
 ]
 
 
@@ -58,6 +58,7 @@ class ComputerToolOptions(TypedDict):
 
 def chunks(s: str, chunk_size: int) -> list[str]:
     return [s[i : i + chunk_size] for i in range(0, len(s), chunk_size)]
+
 
 class ComputerTool(BaseAnthropicTool):
     """
@@ -99,11 +100,12 @@ class ComputerTool(BaseAnthropicTool):
         self.width, self.height = self.get_screen_size()
         print(f"screen size: {self.width}, {self.height}")
 
-        self.key_conversion = {"Page_Down": "pagedown",
-                               "Page_Up": "pageup",
-                               "Super_L": "win",
-                               "Escape": "esc"}
-
+        self.key_conversion = {
+            "Page_Down": "pagedown",
+            "Page_Up": "pageup",
+            "Super_L": "win",
+            "Escape": "esc",
+        }
 
     async def __call__(
         self,
@@ -113,7 +115,9 @@ class ComputerTool(BaseAnthropicTool):
         coordinate: tuple[int, int] | None = None,
         **kwargs,
     ):
-        print(f"action: {action}, text: {text}, coordinate: {coordinate}, is_scaling: {self.is_scaling}")
+        print(
+            f"action: {action}, text: {text}, coordinate: {coordinate}, is_scaling: {self.is_scaling}"
+        )
         if action in ("mouse_move", "left_click_drag"):
             if coordinate is None:
                 raise ToolError(f"coordinate is required for {action}")
@@ -124,7 +128,7 @@ class ComputerTool(BaseAnthropicTool):
             # if not all(isinstance(i, int) and i >= 0 for i in coordinate):
             if not all(isinstance(i, int) for i in coordinate):
                 raise ToolError(f"{coordinate} must be a tuple of non-negative ints")
-            
+
             if self.is_scaling:
                 x, y = self.scale_coordinates(
                     ScalingSource.API, coordinate[0], coordinate[1]
@@ -134,19 +138,21 @@ class ComputerTool(BaseAnthropicTool):
 
             # print(f"scaled_coordinates: {x}, {y}")
             # print(f"offset: {self.offset_x}, {self.offset_y}")
-            
+
             # x += self.offset_x # TODO - check if this is needed
             # y += self.offset_y
 
             print(f"mouse move to {x}, {y}")
-            
+
             if action == "mouse_move":
                 self.send_to_vm(f"pyautogui.moveTo({x}, {y})")
                 return ToolResult(output=f"Moved mouse to ({x}, {y})")
             elif action == "left_click_drag":
                 current_x, current_y = self.send_to_vm("pyautogui.position()")
                 self.send_to_vm(f"pyautogui.dragTo({x}, {y}, duration=0.5)")
-                return ToolResult(output=f"Dragged mouse from ({current_x}, {current_y}) to ({x}, {y})")
+                return ToolResult(
+                    output=f"Dragged mouse from ({current_x}, {current_y}) to ({x}, {y})"
+                )
 
         if action in ("key", "type"):
             if text is None:
@@ -158,21 +164,27 @@ class ComputerTool(BaseAnthropicTool):
 
             if action == "key":
                 # Handle key combinations
-                keys = text.split('+')
+                keys = text.split("+")
                 for key in keys:
                     key = self.key_conversion.get(key.strip(), key.strip())
                     key = key.lower()
-                    self.send_to_vm(f"pyautogui.keyDown('{key}')")  # Press down each key
+                    self.send_to_vm(
+                        f"pyautogui.keyDown('{key}')"
+                    )  # Press down each key
                 for key in reversed(keys):
                     key = self.key_conversion.get(key.strip(), key.strip())
                     key = key.lower()
-                    self.send_to_vm(f"pyautogui.keyUp('{key}')")    # Release each key in reverse order
+                    self.send_to_vm(
+                        f"pyautogui.keyUp('{key}')"
+                    )  # Release each key in reverse order
                 return ToolResult(output=f"Pressed keys: {text}")
-            
+
             elif action == "type":
                 # default click before type TODO: check if this is needed
                 self.send_to_vm("pyautogui.click()")
-                self.send_to_vm(f"pyautogui.typewrite('{text}', interval={TYPING_DELAY_MS / 1000})")
+                self.send_to_vm(
+                    f"pyautogui.typewrite('{text}', interval={TYPING_DELAY_MS / 1000})"
+                )
                 self.send_to_vm("pyautogui.press('enter')")
                 screenshot_base64 = (await self.screenshot()).base64_image
                 return ToolResult(output=text, base64_image=screenshot_base64)
@@ -237,32 +249,40 @@ class ComputerTool(BaseAnthropicTool):
         try:
             print(f"sending to vm: {command_list}")
             response = requests.post(
-                f"http://localhost:5000/execute", 
-                headers={'Content-Type': 'application/json'},
+                f"http://localhost:5000/execute",
+                headers={"Content-Type": "application/json"},
                 json={"command": command_list},
-                timeout=90
+                timeout=90,
             )
-            time.sleep(0.7) # avoid async error as actions take time to complete
+            time.sleep(0.7)  # avoid async error as actions take time to complete
             print(f"action executed")
             if response.status_code != 200:
-                raise ToolError(f"Failed to execute command. Status code: {response.status_code}")
+                raise ToolError(
+                    f"Failed to execute command. Status code: {response.status_code}"
+                )
             if parse:
-                output = response.json()['output'].strip()
-                match = re.search(r'Point\(x=(\d+),\s*y=(\d+)\)', output)
+                output = response.json()["output"].strip()
+                match = re.search(r"Point\(x=(\d+),\s*y=(\d+)\)", output)
                 if not match:
-                    raise ToolError(f"Could not parse coordinates from output: {output}")
+                    raise ToolError(
+                        f"Could not parse coordinates from output: {output}"
+                    )
                 x, y = map(int, match.groups())
                 return x, y
         except requests.exceptions.RequestException as e:
-            raise ToolError(f"An error occurred while trying to execute the command: {str(e)}")
+            raise ToolError(
+                f"An error occurred while trying to execute the command: {str(e)}"
+            )
 
     async def screenshot(self):
-        if not hasattr(self, 'target_dimension'):
+        if not hasattr(self, "target_dimension"):
             screenshot = self.padding_image(screenshot)
             self.target_dimension = MAX_SCALING_TARGETS["WXGA"]
         width, height = self.target_dimension["width"], self.target_dimension["height"]
-        screenshot, path = get_screenshot(resize=True, target_width=width, target_height=height)
-        time.sleep(0.7) # avoid async error as actions take time to complete
+        screenshot, path = get_screenshot(
+            resize=True, target_width=width, target_height=height
+        )
+        time.sleep(0.7)  # avoid async error as actions take time to complete
         return ToolResult(base64_image=base64.b64encode(path.read_bytes()).decode())
 
     def padding_image(self, screenshot):
@@ -312,18 +332,28 @@ class ComputerTool(BaseAnthropicTool):
         try:
             response = requests.post(
                 f"http://localhost:5000/execute",
-                headers={'Content-Type': 'application/json'},
-                json={"command": ["python", "-c", "import pyautogui; print(pyautogui.size())"]},
-                timeout=90
+                headers={"Content-Type": "application/json"},
+                json={
+                    "command": [
+                        "python",
+                        "-c",
+                        "import pyautogui; print(pyautogui.size())",
+                    ]
+                },
+                timeout=90,
             )
             if response.status_code != 200:
-                raise ToolError(f"Failed to get screen size. Status code: {response.status_code}")
-            
-            output = response.json()['output'].strip()
-            match = re.search(r'Size\(width=(\d+),\s*height=(\d+)\)', output)
+                raise ToolError(
+                    f"Failed to get screen size. Status code: {response.status_code}"
+                )
+
+            output = response.json()["output"].strip()
+            match = re.search(r"Size\(width=(\d+),\s*height=(\d+)\)", output)
             if not match:
                 raise ToolError(f"Could not parse screen size from output: {output}")
             width, height = map(int, match.groups())
             return width, height
         except requests.exceptions.RequestException as e:
-            raise ToolError(f"An error occurred while trying to get screen size: {str(e)}")
+            raise ToolError(
+                f"An error occurred while trying to get screen size: {str(e)}"
+            )
